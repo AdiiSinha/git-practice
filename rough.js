@@ -1,1 +1,276 @@
 
+const G = "https://graph.microsoft.com/v1.0";
+ 
+async function req(token, path, options = {}) {
+  const r = await fetch(G + path, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+ 
+  const text = await r.text();
+ 
+  let data = {};
+ 
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+ 
+  if (!r.ok) {
+    throw Error(data?.error?.message || `Graph ${r.status}`);
+  }
+ 
+  return data;
+}
+ 
+ 
+/* =========================================================
+   PROFILE
+========================================================= */
+ 
+export const getProfile = token =>
+  req(
+    token,
+    "/me?$select=id,displayName,givenName,surname,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,preferredLanguage"
+  );
+ 
+ 
+/* =========================================================
+   MAIL
+========================================================= */
+ 
+export const getMail = token =>
+  req(
+    token,
+    "/me/mailFolders/inbox/messages?$top=50&$orderby=receivedDateTime%20desc&$select=id,subject,from,receivedDateTime,bodyPreview,importance,isRead,hasAttachments,webLink,flag"
+  );
+ 
+ 
+export const sendMail = (token, x) =>
+  req(token, "/me/sendMail", {
+    method: "POST",
+    body: JSON.stringify({
+      message: {
+        subject: x.subject,
+ 
+        body: {
+          contentType: "Text",
+          content: x.body
+        },
+ 
+        toRecipients: (x.to || "")
+          .split(/[;,]/)
+          .map(v => v.trim())
+          .filter(Boolean)
+          .map(address => ({
+            emailAddress: {
+              address
+            }
+          })),
+ 
+        ccRecipients: (x.cc || "")
+          .split(/[;,]/)
+          .map(v => v.trim())
+          .filter(Boolean)
+          .map(address => ({
+            emailAddress: {
+              address
+            }
+          }))
+      },
+ 
+      saveToSentItems: true
+    })
+  })
+  .then(() => ({ success: true }));
+ 
+ 
+export const createDraft = (token, x) =>
+  req(token, "/me/messages", {
+    method: "POST",
+ 
+    body: JSON.stringify({
+      subject: x.subject,
+ 
+      body: {
+        contentType: "Text",
+        content: x.body
+      },
+ 
+      toRecipients: (x.to || "")
+        .split(/[;,]/)
+        .map(v => v.trim())
+        .filter(Boolean)
+        .map(address => ({
+          emailAddress: {
+            address
+          }
+        })),
+ 
+      ccRecipients: (x.cc || "")
+        .split(/[;,]/)
+        .map(v => v.trim())
+        .filter(Boolean)
+        .map(address => ({
+          emailAddress: {
+            address
+          }
+        }))
+    })
+  });
+ 
+ 
+export const markImportant = (token, id) =>
+  req(
+    token,
+    `/me/messages/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        importance: "high"
+      })
+    }
+  );
+ 
+ 
+export const flagMail = (token, id) =>
+  req(
+    token,
+    `/me/messages/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        flag: {
+          flagStatus: "flagged"
+        }
+      })
+    }
+  );
+ 
+ 
+/* =========================================================
+   CALENDAR
+   REAL MICROSOFT GRAPH DATA
+========================================================= */
+ 
+/*
+  Loads all calendar events available through /me/events.
+ 
+  Microsoft Graph is paginated, so we continue following
+  @odata.nextLink until there are no more pages.
+ 
+  This removes the old "next 7 days" limitation.
+*/
+ 
+export const getCalendar = async token => {
+ 
+  const select = [
+    "id",
+    "subject",
+    "bodyPreview",
+    "body",
+    "start",
+    "end",
+    "location",
+    "locations",
+    "organizer",
+    "attendees",
+    "isAllDay",
+    "isCancelled",
+    "isOnlineMeeting",
+    "onlineMeetingProvider",
+    "onlineMeeting",
+    "webLink",
+    "importance",
+    "showAs",
+    "responseStatus",
+    "sensitivity",
+    "isReminderOn",
+    "reminderMinutesBeforeStart",
+    "createdDateTime",
+    "lastModifiedDateTime",
+    "recurrence",
+    "seriesMasterId"
+  ].join(",");
+ 
+ 
+  let url =
+    `/me/events?$top=100&$orderby=start/dateTime&$select=${encodeURIComponent(select)}`;
+ 
+ 
+  const events = [];
+ 
+ 
+  while (url) {
+ 
+    const data = await req(token, url, {
+      headers: {
+        Prefer: 'outlook.timezone="UTC"'
+      }
+    });
+ 
+    if (Array.isArray(data.value)) {
+      events.push(...data.value);
+    }
+ 
+    /*
+      @odata.nextLink is a complete Graph URL.
+      req() normally prefixes G, so when nextLink is returned
+      we remove the Graph hostname.
+    */
+ 
+    if (data["@odata.nextLink"]) {
+ 
+      const next = data["@odata.nextLink"];
+ 
+      url = next.startsWith(G)
+        ? next.substring(G.length)
+        : next;
+ 
+    } else {
+ 
+      url = null;
+    }
+  }
+ 
+ 
+  return {
+    value: events
+  };
+};
+ 
+ 
+/* =========================================================
+   CALENDAR - UPDATE IMPORTANCE
+========================================================= */
+ 
+export const updateCalendarImportance = (token, id, important) =>
+  req(
+    token,
+    `/me/events/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+ 
+      body: JSON.stringify({
+        importance: important ? "high" : "normal"
+      })
+    }
+  );
+ 
+ 
+/* =========================================================
+   CALENDAR - OPTIONAL REFRESH SINGLE EVENT
+========================================================= */
+ 
+export const getCalendarEvent = (token, id) =>
+  req(
+    token,
+    `/me/events/${encodeURIComponent(id)}?$select=id,subject,body,bodyPreview,start,end,location,locations,organizer,attendees,isAllDay,isCancelled,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,webLink,importance,showAs,responseStatus,sensitivity,isReminderOn,reminderMinutesBeforeStart,createdDateTime,lastModifiedDateTime,recurrence,seriesMasterId`
+  );
+ 
