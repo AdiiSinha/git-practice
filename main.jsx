@@ -1,1146 +1,470 @@
-import React, { useMemo, useState } from "react";
-import { Title } from "../common/Title";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useMsal } from "@azure/msal-react";
+import { loginRequest } from "./auth";
+import {
+  getProfile,
+  getMail,
+  getCalendar,
+  sendMail,
+  createDraft,
+  markImportant,
+  flagMail,
+  updateCalendarImportance
+} from "./graph";
+import { teams, tasks, rooms, buses, news, projects } from "./data";
+import { ai, BASE_SUGGESTIONS, dynamicFallback, fallback } from "./services/ai";
+import { cleanSpeech, chooseVoice } from "./services/speech";
 
+import { Header } from "./components/layout/Header";
+import { Sidebar } from "./components/layout/Sidebar";
+import { Right } from "./components/layout/Right";
 
-function safeDate(value) {
-  if (!value) return null;
+import { Home } from "./components/modules/Home";
+import { Copilot } from "./components/modules/Copilot";
+import { Mail } from "./components/modules/Mail";
+import { Calendar } from "./components/modules/Calendar";
+import { Commit } from "./components/modules/Commit";
+import { Projects } from "./components/modules/Projects";
+import { Waiting } from "./components/modules/Waiting";
+import { Workplace } from "./components/modules/Workplace";
+import { Rooms } from "./components/modules/Rooms";
 
-  const d = new Date(value);
+import { Login } from "./components/modals/Login";
+import { Splash } from "./components/modals/Splash";
+import { Modal } from "./components/modals/Modal";
+import { ProfileCard } from "./components/modals/ProfileCard";
 
-  return Number.isNaN(d.getTime()) ? null : d;
-}
+export function App() {
+  const { instance, accounts } = useMsal();
+  const account = accounts[0];
+  const [mod, setMod] = useState("home");
+  const [d, setD] = useState({ p: null, m: [], c: [] });
+  const [msgs, setMsgs] = useState([]);
+  const [q, setQ] = useState("");
+  const [state, setState] = useState("idle");
+  const [toast, setToast] = useState("");
+  const [modal, setModal] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [splash, setSplash] = useState(false);
+  const [suggestions, setSuggestions] = useState(BASE_SUGGESTIONS);
+  const [autoListen, setAutoListen] = useState(true);
+  const [muted, setMuted] = useState(false);
+  const [drafts, setDrafts] = useState(() => JSON.parse(localStorage.getItem("wdDrafts") || "[]"));
+  const recognitionRef = useRef(null);
+  const autoTimerRef = useRef(null);
+  const mountedRef = useRef(true);
 
+  useEffect(() => () => {
+    mountedRef.current = false;
+    clearTimeout(autoTimerRef.current);
+    recognitionRef.current?.stop?.();
+    window.speechSynthesis?.cancel();
+  }, []);
 
-function formatTime(value) {
-  const d = safeDate(value);
+  useEffect(() => {
+    if (account && !instance.getActiveAccount()) instance.setActiveAccount(account);
+  }, [account, instance]);
 
-  if (!d) return "--";
+  useEffect(() => {
+    if (!account) return;
+    setSplash(true);
+    const timer = setTimeout(() => setSplash(false), 1500);
+    load();
+    return () => clearTimeout(timer);
+  }, [account]);
 
-  return d.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-
-function formatDate(value) {
-  const d = safeDate(value);
-
-  if (!d) return "--";
-
-  return d.toLocaleDateString([], {
-    weekday: "short",
-    day: "2-digit",
-    month: "short"
-  });
-}
-
-
-function formatFullDate(value) {
-  const d = safeDate(value);
-
-  if (!d) return "--";
-
-  return d.toLocaleString([], {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-}
-
-
-function cleanText(value) {
-  if (!value) return "";
-
-  return String(value)
-    .replace(/<[^>]*>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-
-function getOrganizer(event) {
-  return (
-    event.organizer?.emailAddress?.name ||
-    event.organizer?.emailAddress?.address ||
-    "Organizer unavailable"
-  );
-}
-
-
-function getOrganizerEmail(event) {
-  return event.organizer?.emailAddress?.address || "";
-}
-
-
-function getParticipants(event) {
-  return Array.isArray(event.attendees)
-    ? event.attendees
-    : [];
-}
-
-
-function getLocation(event) {
-  if (event.location?.displayName) {
-    return event.location.displayName;
+  async function token() {
+    try {
+      return (await instance.acquireTokenSilent({
+        scopes: loginRequest.scopes,
+        account: instance.getActiveAccount() || account
+      })).accessToken;
+    } catch {
+      return (await instance.acquireTokenPopup({ scopes: loginRequest.scopes })).accessToken;
+    }
   }
 
-  if (Array.isArray(event.locations) && event.locations.length) {
-    return event.locations
-      .map(x => x.displayName)
-      .filter(Boolean)
-      .join(", ");
+  async function load() {
+    try {
+      const t = await token();
+      const [p, m, c] = await Promise.all([getProfile(t), getMail(t), getCalendar(t)]);
+      if (mountedRef.current) setD({ p, m: m.value || [], c: c.value || [] });
+    } catch (e) {
+      setToast(`Graph data load failed: ${e.message}`);
+    }
   }
 
-  return "No location";
-}
+  const ctx = useMemo(() => ({
+    profile: d.p,
+    emails: d.m,
+    calendar: d.c,
+    teams: teams.map(x => ({ person: x[0], project: x[1], text: x[2], priority: x[3] })),
+    tasks: tasks.map(x => ({ title: x[0], project: x[1], due: x[2], priority: x[3], why: x[4] })),
+    projects,
+    workplace: { rooms, buses, news }
+  }), [d]);
 
-
-function getMeetingLink(event) {
-  return (
-    event.onlineMeeting?.joinUrl ||
-    event.onlineMeeting?.joinWebUrl ||
-    event.webLink ||
-    ""
-  );
-}
-
-
-function getStatus(event) {
-
-  if (event.isCancelled) {
-    return "cancelled";
+  function saveMemory(question, answer) {
+    const old = JSON.parse(localStorage.getItem("wdmem") || "[]");
+    localStorage.setItem("wdmem", JSON.stringify([
+      ...old,
+      { q: question, a: answer, at: new Date().toISOString() }
+    ].slice(-40)));
   }
 
-  const start = safeDate(event.start?.dateTime);
-  const end = safeDate(event.end?.dateTime);
-
-  if (!start || !end) {
-    return "upcoming";
+  function setDynamicSuggestions(items) {
+    const clean = Array.from(new Set((items || []).filter(Boolean).map(String))).slice(0, 6);
+    setSuggestions(clean.length ? clean : BASE_SUGGESTIONS);
   }
 
-  const now = new Date();
-
-  if (now >= start && now <= end) {
-    return "ongoing";
+  async function ask(text) {
+    if (!text.trim()) return;
+    stopRecognition();
+    clearTimeout(autoTimerRef.current);
+    setQ("");
+    setMod("copilot");
+    setMsgs(x => [...x, { r: "u", t: text }]);
+    setState("thinking");
+    try {
+      const memory = JSON.parse(localStorage.getItem("wdmem") || "[]");
+      const z = await ai({ query: text, context: ctx, memory });
+      const answer = String(z.answer || "").trim();
+      setMsgs(x => [...x, { r: "a", t: answer, actions: z.actions || [] }]);
+      saveMemory(text, answer);
+      setDynamicSuggestions(z.suggestions);
+      speak(answer, true);
+    } catch (e) {
+      const answer = fallback(text, d, teams.length);
+      setMsgs(x => [...x, { r: "a", t: answer, actions: [] }]);
+      saveMemory(text, answer);
+      setDynamicSuggestions(dynamicFallback(text));
+      setToast(e.message);
+      speak(answer, true);
+    }
   }
 
-  if (end < now) {
-    return "missed";
-  }
-
-  return "upcoming";
-}
-
-
-function getImportance(event) {
-  return event.importance === "high";
-}
-
-
-function isToday(event) {
-  const start = safeDate(event.start?.dateTime);
-
-  if (!start) return false;
-
-  const now = new Date();
-
-  return (
-    start.getFullYear() === now.getFullYear() &&
-    start.getMonth() === now.getMonth() &&
-    start.getDate() === now.getDate()
-  );
-}
-
-
-function isSoon(event) {
-
-  const start = safeDate(event.start?.dateTime);
-
-  if (!start) return false;
-
-  const now = new Date();
-
-  const diff = start.getTime() - now.getTime();
-
-  return diff >= 0 && diff <= 24 * 60 * 60 * 1000;
-}
-
-
-function isUrgent(event) {
-
-  if (getStatus(event) === "ongoing") {
-    return true;
-  }
-
-  if (getImportance(event)) {
-    return true;
-  }
-
-  if (isSoon(event)) {
-    return true;
-  }
-
-  return false;
-}
-
-
-function StatCard({
-  icon,
-  value,
-  label,
-  tone,
-  onClick,
-  active
-}) {
-
-  return (
-    <button
-      className={`calendarStat ${tone || ""} ${active ? "active" : ""}`}
-      onClick={onClick}
-    >
-
-      <span className="calendarStatIcon">
-        {icon}
-      </span>
-
-      <span className="calendarStatBody">
-        <strong>{value}</strong>
-        <small>{label}</small>
-      </span>
-
-      <span className="calendarStatGlow" />
-    </button>
-  );
-}
-
-
-function MeetingCard({
-  event,
-  important,
-  onImportant,
-  onMail,
-  onJoin
-}) {
-
-  const [expanded, setExpanded] = useState(false);
-
-  const status = getStatus(event);
-
-  const participants = getParticipants(event);
-
-  const description =
-    cleanText(event.bodyPreview) ||
-    cleanText(event.body?.content) ||
-    "No description available.";
-
-  const organizer = getOrganizer(event);
-
-  const organizerEmail = getOrganizerEmail(event);
-
-  const location = getLocation(event);
-
-  const joinLink = getMeetingLink(event);
-
-  return (
-
-    <article
-      className={`calendarMeeting ${status} ${
-        important ? "important" : ""
-      }`}
-    >
-
-      <div className="calendarMeetingRail" />
-
-      <div className="calendarMeetingDate">
-
-        <strong>
-          {safeDate(event.start?.dateTime)
-            ?.toLocaleDateString([], {
-              day: "2-digit"
-            }) || "--"}
-        </strong>
-
-        <small>
-          {safeDate(event.start?.dateTime)
-            ?.toLocaleDateString([], {
-              month: "short"
-            }) || ""}
-        </small>
-
-      </div>
-
-
-      <div className="calendarMeetingMain">
-
-        <div className="calendarMeetingTop">
-
-          <div>
-
-            <div className="calendarMeetingTime">
-
-              {formatTime(event.start?.dateTime)}
-
-              <span>→</span>
-
-              {formatTime(event.end?.dateTime)}
-
-              {status === "ongoing" && (
-                <em className="meetingLive">
-                  ● LIVE
-                </em>
-              )}
-
-              {status === "missed" && (
-                <em className="meetingMissed">
-                  MISSED
-                </em>
-              )}
-
-            </div>
-
-
-            <h3>
-              {event.subject || "Untitled meeting"}
-            </h3>
-
-          </div>
-
-
-          <button
-            className={`meetingStar ${
-              important ? "selected" : ""
-            }`}
-            onClick={() => onImportant(event)}
-            title={
-              important
-                ? "Remove important mark"
-                : "Mark as important"
-            }
-          >
-            {important ? "★" : "☆"}
-          </button>
-
-        </div>
-
-
-        <div className="calendarMeetingMeta">
-
-          <span>
-            <b>ORG</b>
-            {organizer}
-          </span>
-
-          <span>
-            <b>PEOPLE</b>
-            {participants.length}
-          </span>
-
-          <span>
-            <b>LOCATION</b>
-            {location}
-          </span>
-
-        </div>
-
-
-        <div className="calendarMeetingDescription">
-
-          {description.length > 220 && !expanded
-            ? `${description.slice(0, 220)}...`
-            : description}
-
-          {description.length > 220 && (
-            <button
-              className="descriptionToggle"
-              onClick={() => setExpanded(x => !x)}
-            >
-              {expanded ? "Show less" : "Read more"}
-            </button>
-          )}
-
-        </div>
-
-
-        {expanded && (
-
-          <div className="calendarMeetingDetails">
-
-            <div>
-
-              <small>DATE & TIME</small>
-
-              <strong>
-                {formatFullDate(event.start?.dateTime)}
-              </strong>
-
-            </div>
-
-
-            <div>
-
-              <small>END</small>
-
-              <strong>
-                {formatFullDate(event.end?.dateTime)}
-              </strong>
-
-            </div>
-
-
-            <div>
-
-              <small>ORGANIZER</small>
-
-              <strong>
-                {organizer}
-              </strong>
-
-              {organizerEmail && (
-                <span>{organizerEmail}</span>
-              )}
-
-            </div>
-
-
-            <div>
-
-              <small>MEETING TYPE</small>
-
-              <strong>
-                {event.isOnlineMeeting
-                  ? event.onlineMeetingProvider ===
-                    "teamsForBusiness"
-                    ? "Microsoft Teams"
-                    : "Online meeting"
-                  : "Calendar meeting"}
-              </strong>
-
-            </div>
-
-
-            <div className="meetingParticipants">
-
-              <small>PARTICIPANTS</small>
-
-              {participants.length === 0 ? (
-
-                <span>
-                  No participant information available.
-                </span>
-
-              ) : (
-
-                <div className="participantList">
-
-                  {participants.map((person, index) => (
-
-                    <div
-                      className="participant"
-                      key={`${person.emailAddress?.address || "p"}-${index}`}
-                    >
-
-                      <span>
-                        {(person.emailAddress?.name ||
-                          person.emailAddress?.address ||
-                          "?")
-                          .charAt(0)
-                          .toUpperCase()}
-                      </span>
-
-                      <div>
-
-                        <strong>
-                          {person.emailAddress?.name ||
-                            person.emailAddress?.address ||
-                            "Unknown"}
-                        </strong>
-
-                        <small>
-                          {person.emailAddress?.address || ""}
-                        </small>
-
-                      </div>
-
-                    </div>
-
-                  ))}
-
-                </div>
-
-              )}
-
-            </div>
-
-          </div>
-
-        )}
-
-
-        <div className="calendarMeetingActions">
-
-          {joinLink && (
-            <button
-              className="meetingAction primary"
-              onClick={() => onJoin(event)}
-            >
-              ↗ Join meeting
-            </button>
-          )}
-
-
-          {organizerEmail && (
-            <button
-              className="meetingAction"
-              onClick={() => onMail(event)}
-            >
-              ✉ Mail organizer
-            </button>
-          )}
-
-
-          <button
-            className="meetingAction"
-            onClick={() => setExpanded(x => !x)}
-          >
-            {expanded
-              ? "⌃ Hide details"
-              : "⌄ View details"}
-          </button>
-
-        </div>
-
-      </div>
-
-    </article>
-  );
-}
-
-
-function InsightPanel({
-  urgent,
-  missed,
-  important
-}) {
-
-  const nextUrgent = urgent[0];
-
-  return (
-
-    <section className="calendarInsightPanel">
-
-      <div className="calendarInsightHeader">
-
-        <div>
-
-          <span>AI CALENDAR INTELLIGENCE</span>
-
-          <h3>
-            Your schedule, understood.
-          </h3>
-
-        </div>
-
-        <div className="calendarInsightOrb">
-          ✦
-        </div>
-
-      </div>
-
-
-      <div className="calendarInsights">
-
-        {nextUrgent ? (
-
-          <div className="calendarInsight">
-
-            <span className="insightIcon urgent">
-              ⚡
-            </span>
-
-            <div>
-
-              <strong>
-                Upcoming meeting may need your attention
-              </strong>
-
-              <p>
-                <b>
-                  {nextUrgent.subject ||
-                    "Untitled meeting"}
-                </b>
-
-                {" "}starts at{" "}
-
-                {formatTime(
-                  nextUrgent.start?.dateTime
-                )}
-                .
-              </p>
-
-            </div>
-
-          </div>
-
-        ) : (
-
-          <div className="calendarInsight">
-
-            <span className="insightIcon">
-              ✓
-            </span>
-
-            <div>
-
-              <strong>
-                No immediate meeting pressure detected
-              </strong>
-
-              <p>
-                Your calendar currently has no urgent
-                upcoming event.
-              </p>
-
-            </div>
-
-          </div>
-
-        )}
-
-
-        {missed.length > 0 && (
-
-          <div className="calendarInsight">
-
-            <span className="insightIcon missed">
-              ◷
-            </span>
-
-            <div>
-
-              <strong>
-                {missed.length} meeting
-                {missed.length === 1 ? "" : "s"} already ended
-              </strong>
-
-              <p>
-                Review the missed meeting details and
-                follow up with the organizer if required.
-              </p>
-
-            </div>
-
-          </div>
-
-        )}
-
-
-        {important.length > 0 && (
-
-          <div className="calendarInsight">
-
-            <span className="insightIcon important">
-              ★
-            </span>
-
-            <div>
-
-              <strong>
-                {important.length} important meeting
-                {important.length === 1 ? "" : "s"} marked
-              </strong>
-
-              <p>
-                These meetings are highlighted throughout
-                your calendar.
-              </p>
-
-            </div>
-
-          </div>
-
-        )}
-
-      </div>
-
-    </section>
-  );
-}
-
-
-export function Calendar({
-  c = [],
-  ask,
-  onMailOrganizer,
-  onJoinMeeting,
-  onImportant
-}) {
-
-  const [filter, setFilter] = useState("all");
-
-  const [search, setSearch] = useState("");
-
-  const [importantIds, setImportantIds] = useState(
-    () => {
-      try {
-        return JSON.parse(
-          localStorage.getItem("wdImportantMeetings") || "[]"
-        );
-      } catch {
-        return [];
+  function speak(text, continueListening = false) {
+    if (muted) {
+      if (continueListening && autoListen) {
+        clearTimeout(autoTimerRef.current);
+        autoTimerRef.current = setTimeout(() => startListening(true), 2300);
       }
+      return;
     }
-  );
-
-
-  const events = useMemo(() => {
-
-    return [...c]
-      .filter(Boolean)
-      .sort((a, b) => {
-
-        const da =
-          safeDate(a.start?.dateTime)?.getTime() ||
-          0;
-
-        const db =
-          safeDate(b.start?.dateTime)?.getTime() ||
-          0;
-
-        return da - db;
-      });
-
-  }, [c]);
-
-
-  const categorized = useMemo(() => {
-
-    const upcoming = events.filter(
-      x => getStatus(x) === "upcoming"
-    );
-
-    const ongoing = events.filter(
-      x => getStatus(x) === "ongoing"
-    );
-
-    const missed = events.filter(
-      x => getStatus(x) === "missed"
-    );
-
-    const today = events.filter(
-      x => isToday(x)
-    );
-
-    const urgent = events.filter(
-      x => isUrgent(x) &&
-      getStatus(x) !== "missed"
-    );
-
-    const important = events.filter(
-      x =>
-        getImportance(x) ||
-        importantIds.includes(x.id)
-    );
-
-    return {
-      upcoming,
-      ongoing,
-      missed,
-      today,
-      urgent,
-      important
+    if (!window.speechSynthesis) return;
+    clearTimeout(autoTimerRef.current);
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(cleanSpeech(text));
+    const voiceChoice = chooseVoice();
+    if (voiceChoice) u.voice = voiceChoice;
+    u.lang = "en-IN";
+    u.rate = 0.94;
+    u.pitch = 0.92;
+    u.volume = 1;
+    u.onstart = () => mountedRef.current && setState("speaking");
+    u.onend = () => {
+      if (!mountedRef.current) return;
+      setState("idle");
+      if (continueListening && autoListen) {
+        autoTimerRef.current = setTimeout(() => startListening(true), 2300);
+      }
     };
+    u.onerror = () => {
+      if (mountedRef.current) setState("idle");
+    };
+    window.speechSynthesis.speak(u);
+  }
 
-  }, [events, importantIds]);
+  function stopSpeaking() {
+    window.speechSynthesis?.cancel();
+    setState("idle");
+  }
 
+  function stopRecognition() {
+    clearTimeout(autoTimerRef.current);
+    try { recognitionRef.current?.stop?.(); } catch {}
+    recognitionRef.current = null;
+    if (state === "listening") setState("idle");
+  }
 
-  const visibleEvents = useMemo(() => {
-
-    let list = events;
-
-
-    if (filter === "today") {
-      list = categorized.today;
+  function startListening(isAuto = false) {
+    const R = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!R) {
+      setToast("Speech recognition is not supported in this browser. Use Chrome or Edge.");
+      return;
     }
+    if (state === "speaking") stopSpeaking();
+    stopRecognition();
+    const r = new R();
+    r.lang = "en-IN";
+    r.interimResults = true;
+    r.continuous = false;
+    r.onstart = () => mountedRef.current && setState("listening");
+    r.onresult = e => {
+      const finalText = Array.from(e.results).map(v => v[0].transcript).join(" ").trim();
+      if (!finalText) return;
+      if (/^(stop|stop listening|cancel|quiet)$/i.test(finalText)) {
+        stopRecognition();
+        setState("idle");
+        return;
+      }
+      if (e.results[e.results.length - 1].isFinal) ask(finalText);
+    };
+    r.onerror = e => {
+      if (mountedRef.current && e.error !== "aborted" && e.error !== "no-speech") setToast(`Voice input: ${e.error}`);
+      if (mountedRef.current) setState("idle");
+    };
+    r.onend = () => {
+      recognitionRef.current = null;
+      if (mountedRef.current && state === "listening") setState("idle");
+    };
+    recognitionRef.current = r;
+    try { r.start(); } catch { setState("idle"); }
+    if (!isAuto) setAutoListen(true);
+  }
 
-    if (filter === "urgent") {
-      list = categorized.urgent;
-    }
+  function toggleVoice() {
+    if (state === "speaking") return stopSpeaking();
+    if (state === "listening") return stopRecognition();
+    startListening(false);
+  }
 
-    if (filter === "ongoing") {
-      list = categorized.ongoing;
-    }
+  async function login() { await instance.loginPopup(loginRequest); }
+  async function logout() {
+    stopSpeaking();
+    stopRecognition();
+    await instance.logoutPopup();
+  }
 
-    if (filter === "missed") {
-      list = categorized.missed;
-    }
+  async function doSend(x) {
+    try {
+      const t = await token();
+      await sendMail(t, x);
+      setModal(null);
+      setToast(`Email sent successfully to ${x.to}`);
+      load();
+    } catch (e) { setToast(`Send failed: ${e.message}`); }
+  }
 
-    if (filter === "important") {
-      list = categorized.important;
-    }
-
-
-    const q = search.trim().toLowerCase();
-
-    if (q) {
-
-      list = list.filter(event => {
-
-        const subject =
-          event.subject || "";
-
-        const organizer =
-          getOrganizer(event);
-
-        const location =
-          getLocation(event);
-
-        const participants =
-          getParticipants(event)
-            .map(x =>
-              x.emailAddress?.name ||
-              x.emailAddress?.address ||
-              ""
-            )
-            .join(" ");
-
-        return `${subject} ${organizer} ${location} ${participants}`
-          .toLowerCase()
-          .includes(q);
+  async function doDraft(x) {
+    try {
+      const t = await token();
+      const saved = await createDraft(t, x);
+      setDrafts(prev => {
+        const next = [{ ...x, id: saved.id, savedAt: new Date().toISOString() }, ...prev].slice(0, 20);
+        localStorage.setItem("wdDrafts", JSON.stringify(next));
+        return next;
       });
-    }
-
-
-    return list;
-
-  }, [
-    events,
-    filter,
-    search,
-    categorized
-  ]);
-
-
-  function handleImportant(event) {
-
-    const already =
-      importantIds.includes(event.id) ||
-      event.importance === "high";
-
-    const next = already
-      ? importantIds.filter(id => id !== event.id)
-      : [...importantIds, event.id];
-
-
-    setImportantIds(next);
-
-    localStorage.setItem(
-      "wdImportantMeetings",
-      JSON.stringify(next)
-    );
-
-
-    if (onImportant) {
-      onImportant(event, !already);
-    }
+      setModal(null);
+      setToast("Draft saved to Outlook Drafts.");
+    } catch (e) { setToast(`Draft save failed: ${e.message}`); }
   }
 
-
-  function handleJoin(event) {
-
-    const url =
-      event.onlineMeeting?.joinUrl ||
-      event.onlineMeeting?.joinWebUrl ||
-      event.webLink;
-
-    if (!url) {
-      return;
-    }
-
-    if (onJoinMeeting) {
-      onJoinMeeting(event);
-      return;
-    }
-
-    window.open(
-      url,
-      "_blank",
-      "noopener,noreferrer"
+  async function doCalendarImportant(event, important) {
+  try {
+    const t = await token();
+ 
+    await updateCalendarImportance(
+      t,
+      event.id,
+      important
+    );
+ 
+    setToast(
+      important
+        ? `"${event.subject || "Meeting"}" marked important.`
+        : `"${event.subject || "Meeting"}" removed from important.`
+    );
+ 
+    load();
+ 
+  } catch (e) {
+ 
+    setToast(
+      `Calendar update failed: ${e.message}`
     );
   }
+}
 
+function openMeetingMail(event) {
+ 
+  const organizer =
+    event.organizer?.emailAddress?.address || "";
+ 
+  const organizerName =
+    event.organizer?.emailAddress?.name ||
+    "there";
+ 
+  setModal({
+    mode: "meeting",
+    to: organizer,
+    cc: "",
+    subject: `Regarding: ${event.subject || "Meeting"}`,
+    body:
+      `Hi ${organizerName},\n\n` +
+      `I wanted to follow up regarding "${event.subject || "the meeting"}".\n\n` +
+      `Regards,\n${d.p?.displayName || "Employee"}`,
+    sourceMeeting: event
+  });
+}
+ 
 
-  if (!events.length) {
-
-    return (
-
-      <div className="module calendarModule">
-
-        <Title
-          k="TIME & FOCUS"
-          t="Calendar intelligence"
-        />
-
-        <p className="sub">
-          Your Microsoft calendar is currently empty
-          or no calendar events were returned.
-        </p>
-
-
-        <div className="calendarEmpty">
-
-          <div className="calendarEmptyIcon">
-            ◫
-          </div>
-
-          <h3>
-            No calendar events available
-          </h3>
-
-          <p>
-            Workday Copilot could not find any
-            accessible events in your Microsoft calendar.
-          </p>
-
-        </div>
-
-      </div>
-    );
+  async function doFlag(mail) {
+    try { await flagMail(await token(), mail.id); setToast("Mail flagged for follow-up."); load(); }
+    catch (e) { setToast(`Flag failed: ${e.message}`); }
   }
 
+  async function doImportant(mail) {
+    try { await markImportant(await token(), mail.id); setToast("Mail marked important."); load(); }
+    catch (e) { setToast(`Important action failed: ${e.message}`); }
+  }
+
+  function openReply(mail) {
+    const sender = mail.from?.emailAddress?.address || "";
+    setModal({
+      mode: "reply",
+      to: sender,
+      cc: "",
+      subject: `Re: ${mail.subject || ""}`,
+      body: `Hi ${mail.from?.emailAddress?.name || "there"},\n\nThanks for the update. I’ll review this and get back to you shortly.\n\nRegards,\n${d.p?.displayName || "Employee"}`,
+      sourceMail: mail
+    });
+  }
+
+  if (!account) return <Login onLogin={login} />;
+  if (splash) return <Splash p={d.p} account={account} />;
+
+  const voiceLabel =
+    state === "listening"
+      ? "Listening"
+      : state === "speaking"
+      ? "AI speaking"
+      : state === "thinking"
+      ? "Thinking"
+      : "Ready";
 
   return (
-
-    <div className="module calendarModule">
-
-      {/* HEADER */}
-
-      <div className="calendarPageHeader">
-
-        <div>
-
-          <Title
-            k="TIME & FOCUS"
-            t="Calendar intelligence"
-          />
-
-          <p className="sub">
-            Your Microsoft calendar, connected live.
-          </p>
-
-        </div>
-
-
-        <div className="calendarLiveBadge">
-
-          <i />
-
-          LIVE MICROSOFT GRAPH
-
-        </div>
-
-      </div>
-
-
-      {/* DASHBOARD */}
-
-      <div className="calendarStats">
-
-        <StatCard
-          icon="⚡"
-          value={categorized.urgent.length}
-          label="Urgent"
-          tone="urgent"
-          active={filter === "urgent"}
-          onClick={() =>
-            setFilter(
-              filter === "urgent"
-                ? "all"
-                : "urgent"
-            )
-          }
-        />
-
-
-        <StatCard
-          icon="◷"
-          value={categorized.today.length}
-          label="Today's meetings"
-          tone="today"
-          active={filter === "today"}
-          onClick={() =>
-            setFilter(
-              filter === "today"
-                ? "all"
-                : "today"
-            )
-          }
-        />
-
-
-        <StatCard
-          icon="●"
-          value={categorized.ongoing.length}
-          label="Ongoing"
-          tone="ongoing"
-          active={filter === "ongoing"}
-          onClick={() =>
-            setFilter(
-              filter === "ongoing"
-                ? "all"
-                : "ongoing"
-            )
-          }
-        />
-
-
-        <StatCard
-          icon="↶"
-          value={categorized.missed.length}
-          label="Missed / ended"
-          tone="missed"
-          active={filter === "missed"}
-          onClick={() =>
-            setFilter(
-              filter === "missed"
-                ? "all"
-                : "missed"
-            )
-          }
-        />
-
-      </div>
-
-
-      {/* AI INSIGHTS */}
-
-      <InsightPanel
-        urgent={categorized.urgent}
-        missed={categorized.missed}
-        important={categorized.important}
+    <div className="app">
+      <Header
+        d={d}
+        account={account}
+        state={state}
+        voiceLabel={voiceLabel}
+        toggleVoice={toggleVoice}
+        stopSpeaking={stopSpeaking}
+        stopRecognition={stopRecognition}
+        muted={muted}
+        setMuted={setMuted}
+        autoListen={autoListen}
+        setAutoListen={setAutoListen}
+        setProfileOpen={setProfileOpen}
       />
 
+      <div className="layout">
+        <Sidebar
+          mod={mod}
+          setMod={setMod}
+          mailCount={d.m.length}
+          calendarCount={d.c.length}
+          logout={logout}
+        />
 
-      {/* TOOLBAR */}
-
-      <div className="calendarToolbar">
-
-        <div>
-
-          <span>
-            {filter === "all"
-              ? "ALL MEETINGS"
-              : filter.toUpperCase()}
-          </span>
-
-          <small>
-            {visibleEvents.length} meeting
-            {visibleEvents.length === 1 ? "" : "s"}
-          </small>
-
-        </div>
-
-
-        <div className="calendarToolbarControls">
-
-          <button
-            className={
-              filter === "all"
-                ? "selected"
-                : ""
-            }
-            onClick={() => setFilter("all")}
-          >
-            All
-          </button>
-
-          <button
-            className={
-              filter === "important"
-                ? "selected"
-                : ""
-            }
-            onClick={() => setFilter("important")}
-          >
-            ★ Important
-          </button>
-
-
-          <div className="calendarSearch">
-
-            <span>⌕</span>
-
-            <input
-              value={search}
-              onChange={e =>
-                setSearch(e.target.value)
-              }
-              placeholder="Search meetings..."
+        <main>
+          {toast && (
+            <div className="toast">
+              <span>✦</span>
+              {toast}
+              <button onClick={() => setToast("")}>×</button>
+            </div>
+          )}
+          {mod === "home" && (
+            <Home
+              p={d.p}
+              m={d.m}
+              c={d.c}
+              ask={ask}
+              set={setMod}
+              suggestions={suggestions}
             />
+          )}
+          {mod === "copilot" && (
+            <Copilot
+              msgs={msgs}
+              q={q}
+              setQ={setQ}
+              ask={ask}
+              state={state}
+              voice={toggleVoice}
+              stop={() => {
+                stopSpeaking();
+                stopRecognition();
+              }}
+              modal={setModal}
+              suggestions={suggestions}
+              autoListen={autoListen}
+              muted={muted}
+              setMuted={setMuted}
+            />
+          )}
+          {mod === "mail" && (
+            <Mail
+              m={d.m}
+              ask={ask}
+              reply={openReply}
+              flag={doFlag}
+              important={doImportant}
+            />
+          )}
+          {mod === "calendar" && (
+  <Calendar
+    c={d.c}
+    ask={ask}
+    onMailOrganizer={openMeetingMail}
+    onJoinMeeting={(event) => {
+      const url =
+        event.onlineMeeting?.joinUrl ||
+        event.onlineMeeting?.joinWebUrl ||
+        event.webLink;
+ 
+      if (url) {
+        window.open(
+          url,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      } else {
+        setToast(
+          "No online meeting link is available for this event."
+        );
+      }
+    }}
+    onImportant={doCalendarImportant}
+  />
+)}
+ 
+          {mod === "commit" && <Commit ask={ask} />}
+          {mod === "projects" && <Projects />}
+          {mod === "waiting" && <Waiting ask={ask} />}
+          {mod === "workplace" && <Workplace />}
+          {mod === "rooms" && <Rooms />}
+        </main>
 
-          </div>
-
-        </div>
-
+        <Right set={setMod} />
       </div>
 
-
-      {/* MEETINGS */}
-
-      <div className="calendarList">
-
-        {visibleEvents.length === 0 ? (
-
-          <div className="calendarNoResults">
-
-            <span>⌕</span>
-
-            <h3>
-              No meetings match this view
-            </h3>
-
-            <p>
-              Try another filter or search term.
-            </p>
-
-          </div>
-
-        ) : (
-
-          visibleEvents.map(event => (
-
-            <MeetingCard
-              key={event.id}
-              event={event}
-              important={
-                importantIds.includes(event.id) ||
-                event.importance === "high"
-              }
-              onImportant={handleImportant}
-              onMail={event =>
-                onMailOrganizer
-                  ? onMailOrganizer(event)
-                  : ask?.(
-                      `Help me prepare a message to the organizer of "${event.subject}".`
-                    )
-              }
-              onJoin={handleJoin}
-            />
-
-          ))
-
-        )}
-
-      </div>
-
+      {modal && (
+        <Modal
+          x={modal}
+          close={() => setModal(null)}
+          send={doSend}
+          draft={doDraft}
+        />
+      )}
+      {profileOpen && (
+        <ProfileCard p={d.p} close={() => setProfileOpen(false)} />
+      )}
     </div>
   );
 }
 
-
-export default Calendar;
+export default App;
