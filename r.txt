@@ -1,262 +1,98 @@
-Build/refine the "Commitments" page of my existing Workday Copilot application.
+I need you to fix the Commitment Intelligence feature in my existing Workday Copilot application.
 
 IMPORTANT:
-Do not create a separate application.
-Do not change main.jsx.
-Do not redesign the rest of the application.
-The Commitments page must fit naturally into the existing Workday Copilot visual language.
+I have attached/provided these files:
+- main.py
+- Commit.jsx
+- graph.js
+- screenshot/reference of the current Commitment UI
 
-The purpose of this page is:
+DO NOT redesign the UI.
+DO NOT replace the current Commit.jsx UI with a simpler UI.
+DO NOT change main.jsx.
+DO NOT introduce dummy/synthetic commitment data.
+Use the real Microsoft Graph Outlook data already being fetched by the application.
 
-"Understand what I have promised, what is due, what is at risk, and what I should follow up on."
+====================================================
+CURRENT PROBLEM
+====================================================
 
-==================================================
-1. CORE CONCEPT
-==================================================
+The Commitment page UI is already implemented and looks correct.
 
-Create an AI-powered "Commitment Intelligence" page.
+The browser console proves that Microsoft Graph data is reaching Commit.jsx:
 
-The page analyzes the employee's REAL Microsoft Outlook email data and identifies commitments/promises made by the employee.
+Sent count: 4
+Inbox count: 7
 
-Examples:
+Example real SENT email data:
 
-"I will send the report tomorrow."
-"I'll review this by EOD."
-"I can share the document this afternoon."
-"I'll get back to you on Friday."
-"I will follow up with the client."
+SENT 1:
+subject: "Commit checks"
+body:
+"I will send you to tomorrow"
 
-These should become trackable commitments.
+SENT 2:
+subject: "Commit check"
+body:
+"I'll sent to you soon"
 
-Normal conversational messages such as:
+SENT 3:
+subject: "Re: sneha test"
+body:
+"Hi Ghosal, Sneha, Badam khayegi ?"
 
-"Thanks for the update."
-"How are you?"
-"Looks good."
+SENT 4:
+subject: "Urgent test 2"
+body:
 "Important testing part 2"
 
-should NOT automatically become commitments.
+The frontend then calls:
 
-The page should combine:
-
-Microsoft Graph email data
-+
-AI semantic understanding
-+
-deadline extraction
-+
-completion detection
-+
-priority/risk analysis
-
-to create a useful commitment tracker.
-
-==================================================
-2. DATA SOURCE
-==================================================
-
-Use REAL Microsoft Graph Outlook data.
-
-Primary sources:
-
-- Sent emails
-- Inbox/received emails
-- Employee profile
-
-Do NOT use:
-
-- dummy commitments
-- hardcoded commitment arrays
-- synthetic Teams commitments
-- fake users
-- fake email messages
-
-The frontend should receive real messages through graph.js.
-
-The backend should perform AI commitment extraction.
-
-Expected architecture:
-
-Microsoft Graph
-      ↓
-graph.js
-      ↓
-Commit.jsx
-      ↓
 POST /api/commitments
-      ↓
-FastAPI backend
-      ↓
-AI commitment extraction
-      ↓
-structured JSON
-      ↓
-Commit.jsx
-      ↓
-Commitment Intelligence UI
 
-==================================================
-3. PAGE HEADER
-==================================================
+The backend successfully responds, but the response is:
 
-At the top create:
+{
+  "generatedAt": "...",
+  "summary": {},
+  "commitments": []
+}
 
-Small eyebrow:
+Therefore Graph retrieval is working.
 
-MEMORY & FOLLOW-UP
+The problem is that the Commitment AI/backend is returning ZERO commitments even though the first two sent emails clearly contain first-person commitment intent.
 
-Main heading:
+====================================================
+CURRENT Commit.jsx CONTRACT
+====================================================
 
-Your commitments
+Commit.jsx currently contains:
 
-Subtitle:
+async function analyzeAI(sent, inbox, employee){
+  const r = await fetch(`${API}/api/commitments`, {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({
+      sent,
+      inbox,
+      employee,
+      now:new Date().toISOString()
+    })
+  });
 
-"AI reads your real Outlook conversations to discover promises, deadlines and completion evidence."
+  const d = await r.json();
 
-On the right side:
+  if(!r.ok)
+    throw Error(d.detail || "Commitment AI failed");
 
-[ LIVE GRAPH + AI ]
-[ Refresh analysis ]
+  return d;
+}
 
-The "LIVE GRAPH + AI" indicator should communicate that the page is using live Outlook data and AI analysis.
+The frontend expects:
 
-The refresh button should trigger a fresh analysis using the latest Graph email data.
+d.commitments
 
-==================================================
-4. KPI DASHBOARD
-==================================================
-
-Immediately below the header, show five compact KPI cards:
-
-1. ACTIVE
-Number of active commitments
-
-2. DUE TODAY
-Number of commitments due today
-
-3. OVERDUE
-Number of overdue commitments
-
-4. COMPLETED
-Number of completed commitments
-
-5. NO DEADLINE
-Number of commitments without an explicit deadline
-
-Example:
-
-┌──────────────┐
-│ ACTIVE       │
-│ 4            │
-│ commitments  │
-└──────────────┘
-
-Use subtle icons, clean typography and small status indicators.
-
-The cards should be visually compact and professional rather than huge dashboard tiles.
-
-Numbers must be dynamically calculated from the actual commitment dataset.
-
-==================================================
-5. AI ATTENTION BANNER
-==================================================
-
-If there are overdue or high-risk commitments, display an AI attention banner.
-
-Example:
-
-✦ AI ATTENTION
-
-"2 commitments need your attention. One is overdue and another is due today."
-
-Include:
-
-[ Review commitments → ]
-
-Clicking it should filter the list appropriately.
-
-If nothing requires attention, show a neutral state instead of creating fake warnings.
-
-==================================================
-6. FILTER / CONTROL BAR
-==================================================
-
-Create a clean filter toolbar.
-
-Include:
-
-[ All ]
-[ Due today ]
-[ Due soon ]
-[ Overdue ]
-[ Completed ]
-
-Then:
-
-Search commitments...
-
-Dropdown:
-
-Everyone
-
-Dropdown:
-
-All projects
-
-The controls should be compact and aligned horizontally.
-
-On smaller screens they should wrap cleanly.
-
-Filtering must happen against the actual commitment dataset.
-
-==================================================
-7. COMMITMENT CARD DESIGN
-==================================================
-
-Each commitment should appear as a polished card.
-
-Example:
-
-┌─────────────────────────────────────────────────┐
-│ HIGH PRIORITY                    AI 94% CONFIDENCE │
-│                                                 │
-│ Send the deployment report                     │
-│                                                 │
-│ ◎ Priya Sharma                                 │
-│   Atlas Project                                │
-│                                                 │
-│ Due tomorrow · 5:00 PM                         │
-│                                                 │
-│ "I will send you the deployment report..."     │
-│                                                 │
-│ [ Details ] [ Open email ] [ Complete ]        │
-│                                                 │
-│ [ Draft follow-up ]        [ Ask AI ]           │
-└─────────────────────────────────────────────────┘
-
-Card hierarchy:
-
-Top:
-- priority badge
-- AI confidence
-
-Middle:
-- commitment title
-- recipient
-- project
-- deadline
-
-Evidence:
-- original commitment quote
-
-Bottom:
-- action buttons
-
-==================================================
-8. COMMITMENT INFORMATION
-==================================================
-
-Each commitment should support:
+and each commitment should contain fields compatible with the existing UI, including:
 
 id
 title
@@ -282,426 +118,117 @@ completionAt
 risk
 riskReason
 
-Do not invent missing information.
-
-If project cannot be determined:
-
-project = "Unassigned"
-
-If there is no deadline:
-
-status = "no_deadline"
-
-If recipient cannot be determined:
-
-recipientName = "Unknown recipient"
-
-==================================================
-9. STATUS SYSTEM
-==================================================
-
-Support these states:
-
-ACTIVE
-
-DUE TODAY
-
-DUE SOON
-
-OVERDUE
-
-COMPLETED
-
-NO DEADLINE
-
-The UI should visually distinguish these states using subtle badges/icons.
-
-Do not rely only on color.
-
-Example:
-
-● Active
-
-◷ Due today
-
-⚠ Overdue
-
-✓ Completed
-
-— No deadline
-
-==================================================
-10. PRIORITY / RISK
-==================================================
-
-AI should identify:
-
-LOW
-MEDIUM
-HIGH
-
-priority.
-
-Risk can be based on factors such as:
-
-- overdue
-- deadline approaching
-- important recipient
-- client/project context
-- commitment has remained unresolved
-- follow-up required
-- dependency detected
-
-Show high-risk commitments prominently.
-
-Example:
-
-HIGH PRIORITY
-
-"Due today and no completion evidence detected."
-
-Do not fabricate risk.
-
-==================================================
-11. AI CONFIDENCE
-==================================================
-
-Every AI-detected commitment should have a confidence score.
-
-Example:
-
-AI 94%
-
-Also show:
-
-"Why AI detected this"
-
-Example:
-
-"First-person future commitment detected in sent email."
-
-Confidence reasoning should be concise.
-
-Do not expose internal chain-of-thought.
-
-Only show a short user-friendly explanation.
-
-==================================================
-12. ORIGINAL EMAIL EVIDENCE
-==================================================
-
-Every commitment should maintain traceability to the original Outlook email.
-
-When the user clicks:
-
-[ Details ]
-
-open an evidence drawer/modal.
-
-Show:
-
-COMMITMENT EVIDENCE
-
-Original email
-
-Subject:
-"Deployment report"
-
-From:
-Employee
-
-To:
-Recipient
-
-Date:
-17 Sep 2026
-
-Commitment:
-
-"I will send the deployment report tomorrow."
-
-AI reasoning:
-
-"First-person future action with an explicit deadline was detected."
-
-Source:
-
-[ Open email in Outlook ]
-
-The user should be able to verify why the AI created the commitment.
-
-==================================================
-13. COMPLETION DETECTION
-==================================================
-
-The system should also analyze subsequent emails to determine whether a commitment appears to have been completed.
-
-Example:
-
-Original:
-
-"I will send the report tomorrow."
-
-Later email:
-
-"Hi, I've attached the report."
-
-Then mark:
-
-✓ COMPLETED
-
-Show:
-
-Completion evidence:
-"I've attached the report."
-
-Completion email subject
-
-Completion timestamp
-
-The UI should clearly distinguish:
-
-Commitment created
-
-from:
-
-Commitment completed
-
-Do not mark a commitment completed merely because time has passed.
-
-==================================================
-14. OPEN EMAIL
-==================================================
-
-Provide:
-
-[ Open email ]
-
-This should use the actual Microsoft Graph/Outlook message reference.
-
-Use:
-
-sourceId
-sourceWebLink
-
-when available.
-
-Do not create fake URLs.
-
-==================================================
-15. COMPLETE ACTION
-==================================================
-
-Allow the employee to manually mark a commitment as:
-
-Completed
-
-This should update the frontend state.
-
-If the architecture supports persistence, save the state appropriately.
-
-Do not permanently modify Outlook email merely because the user clicked Complete unless explicitly designed to do so.
-
-==================================================
-16. DRAFT FOLLOW-UP
-==================================================
-
-Provide:
-
-[ Draft follow-up ]
-
-When clicked, AI should generate a professional follow-up email based on the actual commitment.
-
-Example:
-
-Subject:
-Follow-up: Deployment report
-
-Body:
-
-Hi Priya,
-
-Just following up on the deployment report I mentioned earlier.
-
-I'll share an update shortly.
-
-Regards,
-Aditya
-
-Open the existing Human Approval modal.
-
-The employee must be able to edit:
-
-Recipient
-CC
-Subject
-Message
-
-Buttons:
-
-[ Cancel ]
-[ Save draft ]
-[ Approve & Send ]
-
-Never automatically send an AI-generated email.
-
-Saving a draft should use the existing Outlook draft functionality.
-
-Sending must require explicit human approval.
-
-==================================================
-17. ASK AI
-==================================================
-
-Each commitment can have:
-
-[ Ask AI ]
-
-When clicked, send a contextual question to the existing Workday Copilot.
-
-Example:
-
-"What should I do about my commitment to send the deployment report?"
-
-The Copilot should receive the relevant commitment context.
-
-Do not create a separate chatbot.
-
-Use the existing Workday Copilot.
-
-==================================================
-18. SEARCH
-==================================================
-
-Search should support:
-
-- commitment title
-- action
-- recipient
-- project
-- email subject
-- original quote
-
-Example:
-
-Searching:
-
-"Priya"
-
-should find commitments associated with Priya.
-
-Searching:
-
-"deployment"
-
-should find deployment-related commitments.
-
-==================================================
-19. PROJECT FILTER
-==================================================
-
-Project filter should be dynamically generated from the actual commitment dataset.
-
-Example:
-
-All projects
-Atlas
-Phoenix
-Nova
-Unassigned
-
-Do not hardcode projects if the commitment data provides project information.
-
-==================================================
-20. EMPTY STATE
-==================================================
-
-If there are genuinely no commitments, show a useful empty state.
-
-Example:
-
-◎
-
-No commitments found
-
-"I couldn't find any clear promises or follow-up commitments in your recent Outlook conversations."
-
-Then:
-
-[ Refresh analysis ]
-
-Do NOT show:
-
-"Something went wrong"
-
-when the backend successfully returned zero commitments.
-
-However, if Graph/API/AI actually failed, show an error state separately:
-
-"Commitment analysis couldn't be completed."
-
-[ Retry ]
-
-==================================================
-21. LOADING STATE
-==================================================
-
-While analyzing:
-
-Show:
-
-✦ AI ANALYZING
-
-"Reading recent Outlook conversations..."
-
-Then:
-
-"Detecting commitments..."
-
-Then:
-
-"Checking deadlines and completion evidence..."
-
-Use subtle skeleton/loading animations.
-
-Do not freeze the UI.
-
-==================================================
-22. ERROR HANDLING
-==================================================
-
-Handle separately:
-
-Graph authentication error
-Graph data retrieval error
-Backend error
-AI error
-Invalid AI JSON
-Empty AI result
-
-Never silently convert an API failure into:
+Do NOT change these field names unless absolutely necessary.
+
+====================================================
+WHAT I WANT YOU TO DO
+====================================================
+
+First inspect ALL THREE files together:
+
+1. main.py
+2. Commit.jsx
+3. graph.js
+
+Trace the complete data flow:
+
+Microsoft Graph
+    ↓
+getSentMail()
+    ↓
+Commit.jsx
+    ↓
+POST /api/commitments
+    ↓
+main.py
+    ↓
+AI/model
+    ↓
+structured commitments
+    ↓
+Commit.jsx
+    ↓
+existing Commitment UI
+
+Find the actual reason why:
 
 commitments: []
 
-because that makes the UI look like there are simply no commitments.
+is being returned.
 
-The UI should distinguish:
+Do not guess.
 
-NO COMMITMENTS
+Fix the actual backend/frontend contract.
 
-from:
+====================================================
+COMMITMENT DETECTION REQUIREMENTS
+====================================================
 
-ANALYSIS FAILED
+The system must detect genuine employee commitments from the user's SENT Outlook emails.
 
-==================================================
-23. BACKEND RESPONSE
-==================================================
+Examples that MUST be detected:
 
-The endpoint:
+"I will send you the document tomorrow."
 
-POST /api/commitments
+"I'll send it to you soon."
 
-must return:
+"I will review this by EOD."
+
+"I'll get back to you tomorrow."
+
+"I can share the report this afternoon."
+
+"I will prepare the presentation."
+
+"I'll follow up with the client."
+
+"I will check this and update you."
+
+The system should distinguish these from ordinary conversational emails.
+
+For example:
+
+"Hi Sneha, how are you?"
+should NOT become a commitment.
+
+"Thanks for the update."
+should NOT become a commitment.
+
+"Important testing part 2"
+should NOT automatically become a commitment.
+
+====================================================
+HYBRID AI + DETERMINISTIC REQUIREMENT
+====================================================
+
+Use a reliable hybrid approach.
+
+AI should perform semantic commitment extraction and reasoning.
+
+However, if the AI returns zero commitments while the SENT email contains an obvious first-person commitment such as:
+
+"I will..."
+"I'll..."
+"I can..."
+"I plan to..."
+"I intend to..."
+"Let me..."
+
+then use a deterministic fallback/extraction step so obvious commitments are not lost.
+
+The deterministic fallback must use the REAL SENT Outlook messages supplied to the endpoint.
+
+Do NOT create fake/sample commitments.
+
+Do NOT hardcode the current example emails.
+
+The fallback must work for future real emails as well.
+
+====================================================
+STRUCTURED RESPONSE REQUIREMENT
+====================================================
+
+The /api/commitments endpoint MUST ALWAYS return valid JSON in this shape:
 
 {
   "generatedAt": "...",
@@ -715,228 +242,351 @@ must return:
   "commitments": []
 }
 
-The frontend must consume:
+Every commitment must be an object matching the frontend contract.
 
-response.commitments
+Do not return a natural-language paragraph instead of structured JSON.
 
-and:
+Do not put JSON inside a markdown code block.
 
-response.summary
+If an LLM is being used, make the backend robust against:
+- markdown fences
+- invalid JSON
+- empty responses
+- missing fields
+- malformed model output
 
-The backend must validate the AI output before returning it.
+Normalize/validate the model response before returning it to Commit.jsx.
 
-If the AI returns malformed JSON, normalize it safely.
+====================================================
+DEADLINE DETECTION
+====================================================
 
-Do not return markdown-wrapped JSON.
+Detect deadlines from the actual email text.
 
-==================================================
-24. REAL-TIME / REFRESH BEHAVIOR
-==================================================
+Examples:
 
-When the user clicks:
+"tomorrow"
+→ dueLabel: "Tomorrow"
 
-Refresh analysis
+"today"
+→ dueLabel: "Today"
 
-perform:
+"EOD"
+→ appropriate today deadline
 
-1. Fetch latest Outlook sent/received messages.
-2. Update frontend Graph data.
-3. Send latest data to /api/commitments.
-4. Run commitment extraction.
-5. Detect completion evidence.
-6. Calculate summary.
-7. Update UI.
+"by Friday"
+→ calculate the appropriate date
 
-The page should show the analysis timestamp.
+"next week"
+→ appropriate future date/range
 
-Example:
+"soon"
+→ due_soon
 
-Last analyzed
-10:42 AM
+No explicit deadline
+→ status: "no_deadline"
 
-==================================================
-25. UI STYLE
-==================================================
+Do not invent a deadline when none exists.
 
-Use the existing Workday Copilot visual style.
+====================================================
+SOURCE / EVIDENCE
+====================================================
 
-Design language:
+Every commitment must preserve its source email.
 
-- premium enterprise SaaS
-- clean
-- modern
-- professional
-- slightly futuristic
-- AI-oriented but not gimmicky
-- compact information density
-- strong visual hierarchy
-- subtle borders
-- rounded cards
-- restrained shadows
-- smooth hover transitions
-- subtle animations
-- readable typography
-- responsive layout
+Use:
 
-Avoid:
+sourceId
+sourceSubject
+sourceWebLink
+originalQuote
+promisedAt
 
-- excessive gradients
-- huge glowing effects
-- cartoon-like AI graphics
-- excessive colors
-- giant cards
-- clutter
-- unnecessary decorative elements
-
-The page should look like an enterprise employee productivity product.
-
-==================================================
-26. VISUAL HIERARCHY
-==================================================
-
-The user should understand the page in this order:
-
-1. What commitments do I have?
-2. How many need attention?
-3. What is overdue/due soon?
-4. Who did I promise?
-5. What did I actually say?
-6. What should I do next?
-7. Can I follow up quickly?
-
-The design should support this hierarchy.
-
-==================================================
-27. IMPORTANT UX PRINCIPLE
-==================================================
-
-This is not just a list of emails.
-
-The page should transform:
-
-RAW EMAIL
-
-into:
-
-COMMITMENT
-
-into:
-
-DEADLINE
-
-into:
-
-RISK
-
-into:
-
-NEXT ACTION
+The originalQuote should contain the actual sentence/phrase from the real Outlook email that caused the commitment to be detected.
 
 Example:
 
-Email:
-"I'll send the report tomorrow."
+originalQuote:
+"I will send you to tomorrow"
 
-↓
+Do NOT generate fake quotes.
 
-Commitment:
-Send deployment report
+The existing "Details" drawer must continue to work using sourceId and getMailMessage().
 
-↓
+====================================================
+COMPLETION DETECTION
+====================================================
 
-Deadline:
-Tomorrow
+Keep the existing completion-detection architecture.
 
-↓
+If a later email indicates that the commitment was completed, preserve:
 
-Status:
-Due soon
+completionDetected
+completionEvidence
+completionSubject
+completionAt
 
-↓
+Do not remove this functionality while fixing initial commitment extraction.
 
-Risk:
-Medium
+====================================================
+SUMMARY
+====================================================
 
-↓
+The backend must calculate summary from the FINAL commitment list returned to the frontend.
 
-Next action:
-Send report / Draft follow-up
+For example, if two active commitments are detected:
 
-This transformation is the main value proposition of the page.
+summary should contain corresponding counts.
 
-==================================================
-28. DO NOT BREAK EXISTING APPLICATION
-==================================================
+Do not leave summary as {} when commitments exist.
 
-Do not modify:
+====================================================
+CURRENT UI MUST REMAIN THE SAME
+====================================================
 
-main.jsx
-MSAL authentication
-existing Outlook inbox
-existing calendar
-existing Copilot
-existing email draft modal
-existing email sending
-existing navigation
+This is extremely important.
 
-Only modify the files required for the Commitment feature.
+The current Commit.jsx UI is already designed and should remain visually/functionally intact.
 
-Preserve existing component architecture.
+Keep:
 
-==================================================
-29. FINAL SUCCESS CRITERIA
-==================================================
+- "MEMORY & FOLLOW-UP"
+- "Your commitments"
+- "LIVE GRAPH + AI"
+- "Refresh analysis"
+- KPI cards
+- Active
+- Due today
+- Overdue
+- Completed
+- No deadline
+- AI attention banner
+- All / Due today / Due soon / Overdue / Completed tabs
+- Search commitments
+- Everyone filter
+- Project filter
+- Commitment cards
+- AI confidence
+- HIGH PRIORITY
+- recipient
+- project
+- deadline
+- original quote
+- Details
+- Open email
+- Complete
+- Draft follow-up
+- Ask AI
+- completion evidence
+- risk indicator
+- commitment evidence drawer
+- original email section
+- AI reasoning
+- Draft follow-up modal
+- Save Outlook draft
+- Approve & Send
+- Human approval requirement
+- existing animations
+- existing CSS
 
-The feature is complete when:
+Do NOT replace the UI with a new design.
 
-✓ Real Outlook sent emails are analyzed.
+Do NOT remove functionality to make the bug disappear.
 
-✓ Genuine first-person commitments are detected.
+The screenshot I provided is the visual reference. Preserve this appearance.
 
-✓ Ordinary conversational emails are ignored.
+====================================================
+REAL GRAPH DATA ONLY
+====================================================
 
-✓ Deadlines are extracted.
+Do not use:
+- tasks from data.js
+- hardcoded commitments
+- synthetic Teams data
+- fake email examples
+- sample commitment arrays
 
-✓ Commitment status is calculated.
+The Commitment page must be driven by:
 
-✓ Priority/risk is calculated.
+getSentMail()
+getMail()
+getProfile()
 
-✓ Completion evidence can be detected.
+and the real Outlook messages.
 
-✓ Each commitment links back to its source email.
+The current application already proves:
 
-✓ KPI numbers are dynamic.
+4 sent messages
+7 inbox messages
 
-✓ Filters work.
+are being retrieved successfully.
 
-✓ Search works.
+Do not break Microsoft Graph authentication.
 
-✓ Details drawer works.
+Do not change the MSAL authentication architecture.
 
-✓ Open email works.
+Do not change main.jsx.
 
-✓ Complete works.
+====================================================
+GRAPH.JS
+====================================================
 
-✓ Draft follow-up works.
+Inspect getSentMail() carefully.
 
-✓ Ask AI works.
+Make sure it retrieves enough information for commitment extraction:
 
-✓ Human approval is required before sending.
+- id
+- subject
+- body
+- bodyPreview if available
+- sentDateTime
+- toRecipients
+- ccRecipients
+- webLink
+- conversationId
 
-✓ Refresh analysis retrieves the latest data.
+Prefer text body content where possible.
 
-✓ Loading and error states are clear.
+Do not remove the existing working Graph functionality.
 
-✓ No dummy commitments are used.
+====================================================
+DEBUGGING REQUIREMENT
+====================================================
 
-✓ Existing Commitment UI design is preserved.
+Add useful backend logging while fixing this.
 
-✓ /api/commitments returns structured JSON.
+I want logs such as:
 
-✓ The UI never silently hides backend failures as "0 commitments".
+COMMITMENT REQUEST
+Sent emails: X
+Inbox emails: X
 
-Most importantly:
+AI commitment extraction started
 
-Do not solve the problem by hardcoding the current test emails.
+AI commitments returned: X
 
-The implementation must work with future real Outlook emails automatically.
+Fallback commitments detected: X
+
+FINAL COMMITMENT COUNT: X
+
+FINAL SUMMARY: {...}
+
+For every final commitment log:
+
+COMMITMENT:
+title
+status
+originalQuote
+sourceSubject
+
+Do not log sensitive full email bodies unnecessarily.
+
+====================================================
+IMPORTANT ARCHITECTURE REQUIREMENT
+====================================================
+
+Do NOT solve this by simply changing:
+
+const list = d.commitments || [];
+
+to some fake frontend array.
+
+The backend must actually return structured commitments.
+
+The frontend should consume:
+
+d.commitments
+
+normally.
+
+The solution should therefore work for any future real Outlook emails, not only the two current test emails.
+
+====================================================
+EXPECTED RESULT WITH CURRENT TEST DATA
+====================================================
+
+After the fix, when I click:
+
+"Refresh analysis"
+
+the two obvious commitment emails should be detected:
+
+1.
+"I will send you to tomorrow"
+
+2.
+"I'll sent to you soon"
+
+The conversational email:
+
+"Hi Ghosal, Sneha, Badam khayegi ?"
+
+should NOT be detected as a commitment.
+
+"Important testing part 2"
+
+should NOT automatically become a commitment.
+
+Therefore the page should no longer show:
+
+Active 0
+Due today 0
+Overdue 0
+Completed 0
+No deadline 0
+No commitments in this view
+
+Instead, it should display the detected real commitments in the existing cards/UI.
+
+====================================================
+DO NOT MODIFY UNRELATED FEATURES
+====================================================
+
+Do not break:
+
+- Outlook inbox
+- Calendar
+- AI Copilot
+- email drafting
+- email sending
+- calendar actions
+- MSAL authentication
+- existing navigation
+- existing Commitment UI styling
+- existing human approval workflow
+
+Do not modify main.jsx.
+
+Only make the minimum necessary changes to:
+
+- main.py
+- Commit.jsx
+- graph.js
+
+and only if required.
+
+====================================================
+FINAL RESPONSE
+====================================================
+
+After making the changes:
+
+1. Clearly explain the root cause you found.
+2. List exactly which files you changed.
+3. Show the important changed sections.
+4. Explain how the data now flows from Graph → backend → commitments → UI.
+5. Tell me exactly how to restart the backend/frontend and test it.
+6. Do not give me a completely new project.
+7. Do not redesign Commit.jsx.
+
+Before finishing, verify that the response from:
+
+POST /api/commitments
+
+contains:
+
+{
+  "commitments": [...]
+}
+
+with at least one valid commitment for the current test emails.
