@@ -1,276 +1,70 @@
-
-const G = "https://graph.microsoft.com/v1.0";
- 
-async function req(token, path, options = {}) {
-  const r = await fetch(G + path, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    }
-  });
- 
-  const text = await r.text();
- 
-  let data = {};
- 
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
-  }
- 
-  if (!r.ok) {
-    throw Error(data?.error?.message || `Graph ${r.status}`);
-  }
- 
-  return data;
-}
- 
- 
-/* =========================================================
-   PROFILE
-========================================================= */
- 
-export const getProfile = token =>
-  req(
-    token,
-    "/me?$select=id,displayName,givenName,surname,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,preferredLanguage"
-  );
- 
- 
-/* =========================================================
-   MAIL
-========================================================= */
- 
-export const getMail = token =>
-  req(
-    token,
-    "/me/mailFolders/inbox/messages?$top=50&$orderby=receivedDateTime%20desc&$select=id,subject,from,receivedDateTime,bodyPreview,importance,isRead,hasAttachments,webLink,flag"
-  );
- 
- 
-export const sendMail = (token, x) =>
-  req(token, "/me/sendMail", {
-    method: "POST",
-    body: JSON.stringify({
-      message: {
-        subject: x.subject,
- 
-        body: {
-          contentType: "Text",
-          content: x.body
-        },
- 
-        toRecipients: (x.to || "")
-          .split(/[;,]/)
-          .map(v => v.trim())
-          .filter(Boolean)
-          .map(address => ({
-            emailAddress: {
-              address
+@app.post("/api/commitments")
+def commitments(x: CommitmentReq):
+    try:
+        # Keep enough context for semantic matching while limiting provider payload size.
+        def compact_mail(m, direction):
+            body = ((m.get("body") or {}).get("content") if isinstance(m.get("body"), dict) else None) or m.get("bodyPreview") or ""
+            return {
+                "id": m.get("id", ""),
+                "direction": direction,
+                "subject": m.get("subject", ""),
+                "from": m.get("from", {}),
+                "toRecipients": m.get("toRecipients", []),
+                "ccRecipients": m.get("ccRecipients", []),
+                "timestamp": m.get("timestamp") or m.get("sentDateTime") or m.get("receivedDateTime") or "",
+                "body": str(body)[:3500],
+                "webLink": m.get("webLink", ""),
+                "conversationId": m.get("conversationId", "")
             }
-          })),
- 
-        ccRecipients: (x.cc || "")
-          .split(/[;,]/)
-          .map(v => v.trim())
-          .filter(Boolean)
-          .map(address => ({
-            emailAddress: {
-              address
-            }
-          }))
-      },
- 
-      saveToSentItems: true
-    })
-  })
-  .then(() => ({ success: true }));
- 
- 
-export const createDraft = (token, x) =>
-  req(token, "/me/messages", {
-    method: "POST",
- 
-    body: JSON.stringify({
-      subject: x.subject,
- 
-      body: {
-        contentType: "Text",
-        content: x.body
-      },
- 
-      toRecipients: (x.to || "")
-        .split(/[;,]/)
-        .map(v => v.trim())
-        .filter(Boolean)
-        .map(address => ({
-          emailAddress: {
-            address
-          }
-        })),
- 
-      ccRecipients: (x.cc || "")
-        .split(/[;,]/)
-        .map(v => v.trim())
-        .filter(Boolean)
-        .map(address => ({
-          emailAddress: {
-            address
-          }
-        }))
-    })
-  });
- 
- 
-export const markImportant = (token, id) =>
-  req(
-    token,
-    `/me/messages/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        importance: "high"
-      })
-    }
-  );
- 
- 
-export const flagMail = (token, id) =>
-  req(
-    token,
-    `/me/messages/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        flag: {
-          flagStatus: "flagged"
+        sent = [compact_mail(m, "sent") for m in x.sent[:30]]
+        inbox = [compact_mail(m, "received") for m in x.inbox[:30]]
+        user_content = {
+            "NOW": x.now or datetime.now(timezone.utc).isoformat(),
+            "EMPLOYEE": x.employee,
+            "SENT_EMAILS": sent,
+            "INBOX_EMAILS": inbox
         }
-      })
-    }
-  );
- 
- 
-/* =========================================================
-   CALENDAR
-   REAL MICROSOFT GRAPH DATA
-========================================================= */
- 
-/*
-  Loads all calendar events available through /me/events.
- 
-  Microsoft Graph is paginated, so we continue following
-  @odata.nextLink until there are no more pages.
- 
-  This removes the old "next 7 days" limitation.
-*/
- 
-export const getCalendar = async token => {
- 
-  const select = [
-    "id",
-    "subject",
-    "bodyPreview",
-    "body",
-    "start",
-    "end",
-    "location",
-    "locations",
-    "organizer",
-    "attendees",
-    "isAllDay",
-    "isCancelled",
-    "isOnlineMeeting",
-    "onlineMeetingProvider",
-    "onlineMeeting",
-    "webLink",
-    "importance",
-    "showAs",
-    "responseStatus",
-    "sensitivity",
-    "isReminderOn",
-    "reminderMinutesBeforeStart",
-    "createdDateTime",
-    "lastModifiedDateTime",
-    "recurrence",
-    "seriesMasterId"
-  ].join(",");
- 
- 
-  let url =
-    `/me/events?$top=100&$orderby=start/dateTime&$select=${encodeURIComponent(select)}`;
- 
- 
-  const events = [];
- 
- 
-  while (url) {
- 
-    const data = await req(token, url, {
-      headers: {
-        Prefer: 'outlook.timezone="UTC"'
-      }
-    });
- 
-    if (Array.isArray(data.value)) {
-      events.push(...data.value);
-    }
- 
-    /*
-      @odata.nextLink is a complete Graph URL.
-      req() normally prefixes G, so when nextLink is returned
-      we remove the Graph hostname.
-    */
- 
-    if (data["@odata.nextLink"]) {
- 
-      const next = data["@odata.nextLink"];
- 
-      url = next.startsWith(G)
-        ? next.substring(G.length)
-        : next;
- 
-    } else {
- 
-      url = null;
-    }
-  }
- 
- 
-  return {
-    value: events
-  };
-};
- 
- 
-/* =========================================================
-   CALENDAR - UPDATE IMPORTANCE
-========================================================= */
- 
-export const updateCalendarImportance = (token, id, important) =>
-  req(
-    token,
-    `/me/events/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
- 
-      body: JSON.stringify({
-        importance: important ? "high" : "normal"
-      })
-    }
-  );
- 
- 
-/* =========================================================
-   CALENDAR - OPTIONAL REFRESH SINGLE EVENT
-========================================================= */
- 
-export const getCalendarEvent = (token, id) =>
-  req(
-    token,
-    `/me/events/${encodeURIComponent(id)}?$select=id,subject,body,bodyPreview,start,end,location,locations,organizer,attendees,isAllDay,isCancelled,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,webLink,importance,showAs,responseStatus,sensitivity,isReminderOn,reminderMinutesBeforeStart,createdDateTime,lastModifiedDateTime,recurrence,seriesMasterId`
-  );
- 
+        content = provider_call([
+            {"role": "system", "content": COMMITMENT_SYSTEM},
+            {"role": "user", "content": json.dumps(user_content, ensure_ascii=False)}
+        ], temperature=0.05)
+        data = json.loads(content)
+        data.setdefault("generatedAt", datetime.now(timezone.utc).isoformat())
+        data.setdefault("summary", {})
+        data.setdefault("commitments", [])
+        return data
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"Commitment AI returned invalid JSON: {e}")
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+class DraftReq(BaseModel):
+    commitment: dict = Field(default_factory=dict)
+
+DRAFT_SYSTEM = """
+You draft concise professional workplace follow-up emails.
+Use only the supplied commitment. Do not invent project facts or deadlines.
+If a recipient email is present, use it. If not, return an empty `to`.
+Return JSON ONLY: {"to":"","subject":"","body":""}.
+The message should politely reference the commitment and ask for/communicate the next step.
+If the commitment is overdue, acknowledge the follow-up without inventing an excuse.
+"""
+
+@app.post("/api/commitments/draft")
+def commitment_draft(x: DraftReq):
+    try:
+        content = provider_call([
+            {"role": "system", "content": DRAFT_SYSTEM},
+            {"role": "user", "content": json.dumps(x.commitment, ensure_ascii=False)}
+        ], temperature=0.2)
+        data = json.loads(content)
+        return {
+            "to": data.get("to", ""),
+            "subject": data.get("subject", f"Follow-up: {x.commitment.get('title', 'Commitment')}"),
+            "body": data.get("body", "")
+        }
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"Draft AI returned invalid JSON: {e}")
+    except Exception as e:
+        raise HTTPException(500, str(e))
