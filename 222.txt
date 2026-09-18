@@ -1,0 +1,652 @@
+I want you to redesign ONLY the existing AI voice orb/assistant visualization in my Workday Copilot application.
+
+I am attaching:
+1. Orb.jsx
+2. styles.css
+3. A reference image showing the visual style I want.
+
+IMPORTANT:
+Do NOT redesign the rest of the application.
+Do NOT change the existing page layout, navigation, header, sidebar, buttons, typography, colors outside the orb, or existing functionality.
+Do NOT change main.jsx.
+Do NOT remove or break any existing voice functionality.
+
+====================================================
+REFERENCE DESIGN
+====================================================
+
+Use the attached reference image as the primary visual inspiration.
+
+The current application has a smooth glowing blue/cyan spherical orb.
+
+I want to replace that visual with a much more advanced:
+
+"AI PARTICLE / SAND ORB"
+
+similar to the reference image.
+
+The orb should look like an intelligent AI agent made from thousands of tiny flowing particles.
+
+It should feel:
+- futuristic
+- premium
+- intelligent
+- alive
+- responsive
+- sophisticated
+- enterprise AI
+- similar to a talking AI assistant
+
+Do NOT simply put a particle image behind the orb.
+
+The effect should be implemented as a REAL animated UI visualization using the existing React/CSS architecture or a lightweight browser animation technique appropriate for the project.
+
+====================================================
+1. VISUAL APPEARANCE
+====================================================
+
+Replace the existing solid/glowing sphere with a particle-based sphere.
+
+The orb should consist of many tiny particles/dots.
+
+Particles should form an approximately spherical 3D shape.
+
+The particles should have:
+
+- different sizes
+- different brightness levels
+- slight depth variation
+- subtle transparency
+- organic movement
+- flowing motion
+- slight orbital movement around the sphere
+- occasional particles moving along the surface
+- subtle purple/magenta and cyan/blue tones
+
+The overall silhouette should still clearly read as a sphere.
+
+The center should feel slightly denser while the outer edges should contain finer particles.
+
+Avoid making it look like:
+- fireworks
+- stars in space
+- random dust
+- a loading spinner
+- a flat 2D circle
+
+It should look like a cohesive intelligent particle organism.
+
+====================================================
+2. REFERENCE IMAGE INTERPRETATION
+====================================================
+
+The attached reference has a particle sphere with:
+
+- cyan/blue particles on one side
+- purple/magenta particles on another side
+- flowing particle trails
+- soft atmospheric glow
+- irregular particle surface
+- 3D spherical depth
+- organic motion
+
+Use those characteristics as inspiration.
+
+Do not copy any copyrighted image directly.
+
+Recreate the visual effect programmatically.
+
+====================================================
+3. IDLE STATE
+====================================================
+
+When the AI is idle/ready:
+
+The particle sphere should slowly rotate.
+
+Particles should continuously move very subtly.
+
+The sphere should breathe/pulse very gently.
+
+Example:
+
+READY
+    ↓
+slow particle flow
+    ↓
+gentle rotation
+    ↓
+soft glow
+    ↓
+small breathing pulse
+
+The animation must be calm.
+
+It should NOT constantly bounce aggressively.
+
+====================================================
+4. LISTENING STATE
+====================================================
+
+When the existing voice recognition state becomes:
+
+"listening"
+
+the particle orb should react.
+
+Make it feel like the AI is actively listening.
+
+Behavior:
+
+- particle movement becomes faster
+- sphere expands slightly
+- particles move toward/away from the surface
+- glow becomes stronger
+- subtle wave/ripple travels through the particles
+- outer particles become more active
+- orb should have a breathing/pulsing effect
+
+The animation should clearly communicate:
+
+"AI is listening."
+
+Do NOT change the existing speech-recognition logic.
+
+Only connect the visual state to the existing state/props already provided by Orb.jsx.
+
+====================================================
+5. THINKING STATE
+====================================================
+
+When the existing state is:
+
+"thinking"
+
+show a more concentrated particle behavior.
+
+For example:
+
+- particles slowly converge toward the center
+- then expand outward
+- subtle rotation accelerates
+- central glow increases
+- particle density appears to fluctuate
+
+It should communicate:
+
+"AI is processing."
+
+Again:
+
+Do not change the existing AI logic.
+
+Only change the visualization.
+
+====================================================
+6. SPEAKING STATE
+====================================================
+
+When the existing state is:
+
+"speaking"
+
+make the orb look like a TALKING AI AGENT.
+
+This is the most important animation.
+
+The particle sphere should react as if the AI is speaking.
+
+Possible behavior:
+
+- rhythmic particle waves
+- subtle expansion/contraction
+- particles ripple from the center toward the edges
+- surface distortion
+- increased particle movement
+- dynamic glow
+- subtle audio-reactive-looking pulses
+
+The animation should look organic rather than mechanical.
+
+Think:
+
+AI voice waveform
++
+3D particle sphere
++
+breathing intelligence
+
+The user should immediately understand:
+
+"the AI is talking."
+
+If actual audio amplitude is already available in Orb.jsx, use it.
+
+If audio amplitude is NOT available, create a tasteful simulated speaking pulse based on the existing "speaking" state.
+
+Do NOT introduce a complicated audio-processing dependency unless it is already present in the project.
+
+====================================================
+7. HOVER INTERACTION
+====================================================
+
+Add a premium hover interaction.
+
+When the user moves the mouse over the orb:
+
+- particles should subtly move toward the cursor
+- the sphere should slightly deform
+- particle flow should become more energetic
+- glow should increase
+- sphere should scale slightly
+- a subtle radial ripple should appear
+
+Example:
+
+Normal:
+    calm particle sphere
+
+Hover:
+    particles react toward cursor
+    + slight scale
+    + stronger glow
+    + subtle ripple
+
+Do NOT make the hover effect excessive.
+
+It should feel like touching an intelligent digital object.
+
+====================================================
+8. MOUSE / POINTER INTERACTION
+====================================================
+
+If practical, track pointer position relative to the orb.
+
+Use it to influence particle movement.
+
+For example:
+
+mouse moves left
+→ particle field slightly follows left
+
+mouse moves toward center
+→ particles respond around cursor
+
+mouse leaves
+→ particles smoothly return to normal
+
+Use interpolation/smoothing so the movement does not look jittery.
+
+====================================================
+9. 3D EFFECT
+====================================================
+
+The particle sphere should feel 3D.
+
+Use techniques such as:
+
+- depth-based particle size
+- opacity based on depth
+- subtle rotation
+- perspective
+- parallax
+- radial particle distribution
+
+Front particles:
+slightly brighter/larger
+
+Back particles:
+slightly dimmer/smaller
+
+This should create the illusion of a real 3D particle sphere without requiring a heavy 3D framework unless one is already installed.
+
+====================================================
+10. COLORS
+====================================================
+
+Use the existing Workday Copilot color language.
+
+Primary:
+
+cyan / electric blue
+
+Secondary:
+
+violet / purple / magenta
+
+Use gradients or particle color interpolation so the sphere naturally transitions between these colors.
+
+Do NOT make every particle the exact same color.
+
+Some particles can be:
+
+cyan
+blue
+violet
+magenta
+
+with subtle brightness differences.
+
+Keep it premium and restrained.
+
+====================================================
+11. GLOW
+====================================================
+
+Add several subtle layers of glow:
+
+1. particle glow
+2. inner atmospheric glow
+3. soft outer aura
+4. subtle hover glow
+
+Avoid excessive bloom.
+
+The orb should remain sharp and professional.
+
+The reference image should feel like an inspiration for the particle field, not a giant blurred neon ball.
+
+====================================================
+12. PARTICLE DISTRIBUTION
+====================================================
+
+Use enough particles to make the sphere visually rich.
+
+Target approximately:
+
+500–1500 particles
+
+depending on browser performance.
+
+Prioritize smooth 60fps animation.
+
+If the current project cannot support that many particles efficiently, automatically reduce the particle count.
+
+Do not create thousands of DOM elements if that would cause performance problems.
+
+Prefer:
+
+Canvas
+
+or another efficient rendering approach.
+
+If Orb.jsx already uses canvas, extend the existing implementation instead of replacing the architecture unnecessarily.
+
+====================================================
+13. PERFORMANCE
+====================================================
+
+This is extremely important.
+
+The application already contains:
+
+- Outlook Graph API
+- AI calls
+- voice recognition
+- speech synthesis
+- multiple UI modules
+
+The particle animation must NOT block or slow down these features.
+
+Use:
+
+requestAnimationFrame
+
+and clean up animation loops when the component unmounts.
+
+Avoid:
+
+- memory leaks
+- multiple animation loops
+- unnecessary React re-renders
+- creating new particle arrays every frame
+- excessive DOM elements
+
+Use refs for animation state where appropriate.
+
+====================================================
+14. RESPONSIVE DESIGN
+====================================================
+
+The orb must remain visually correct on:
+
+- desktop
+- laptop
+- smaller screens
+
+Do not make it overflow its container.
+
+Maintain the existing orb dimensions/layout from Orb.jsx unless a small adjustment is necessary for the particle effect.
+
+====================================================
+15. EXISTING FUNCTIONALITY
+====================================================
+
+Preserve every existing Orb.jsx behavior.
+
+If Orb.jsx currently receives something like:
+
+state
+status
+listening
+speaking
+thinking
+onClick
+etc.
+
+keep the same API.
+
+Do NOT rename props unless absolutely necessary.
+
+Do NOT break:
+
+- voice recognition
+- speech synthesis
+- mute
+- auto-listen
+- click interactions
+- existing state transitions
+
+The new visualization must plug into the existing functionality.
+
+====================================================
+16. UI TEXT
+====================================================
+
+Do not change the existing surrounding text.
+
+Keep existing labels such as:
+
+READY FOR YOUR COMMAND
+
+Voice command
+
+Mute AI
+
+Auto-listen
+
+and other existing UI elements.
+
+Only improve the visual orb itself and any tiny visual status indicator directly associated with it.
+
+====================================================
+17. ANIMATION DETAILS
+====================================================
+
+The motion should have multiple layers.
+
+Layer 1:
+Slow sphere rotation.
+
+Layer 2:
+Small random particle movement.
+
+Layer 3:
+Surface flow.
+
+Layer 4:
+State-based pulse.
+
+Layer 5:
+Pointer interaction.
+
+These should combine smoothly.
+
+Avoid synchronized movement of all particles.
+
+Particles should move with slightly different speeds and phases so the orb feels organic.
+
+====================================================
+18. PARTICLE TRAILS
+====================================================
+
+Add subtle particle trails where appropriate.
+
+Especially during:
+
+LISTENING
+THINKING
+SPEAKING
+
+Some particles can appear to flow around the sphere.
+
+Keep trails short and subtle.
+
+Do not turn the orb into a comet.
+
+====================================================
+19. SPEAKING VISUAL EXAMPLE
+====================================================
+
+Conceptually:
+
+             ·  ·
+        ·  ·       ·
+      ·    ✦ ✦ ✦    ·
+     ·   ✦       ✦   ·
+    ·   ✦   AI    ✦   ·
+     ·   ✦       ✦   ·
+      ·    ✦ ✦ ✦    ·
+        ·  ·     ·  ·
+
+During speech:
+
+particles ripple outward
+
+       ↓
+    ✦ ✦ ✦
+  ✦       ✦
+ ✦   CORE   ✦
+  ✦       ✦
+    ✦ ✦ ✦
+
+with subtle rhythmic expansion.
+
+====================================================
+20. CODE QUALITY
+====================================================
+
+Please inspect the attached:
+
+Orb.jsx
+styles.css
+
+before making changes.
+
+Understand the existing implementation first.
+
+Then modify only what is necessary.
+
+Keep the code clean and maintainable.
+
+Add comments explaining:
+
+- particle initialization
+- animation loop
+- state-based animation
+- pointer interaction
+- cleanup
+
+Do not introduce unnecessary dependencies.
+
+If a dependency is genuinely required, explain why before adding it.
+
+====================================================
+21. IMPORTANT: DO NOT FAKE THE EFFECT WITH AN IMAGE
+====================================================
+
+Do NOT simply use the attached reference image as:
+
+<img src="...">
+
+The reference image is ONLY visual inspiration.
+
+The final orb must be an interactive animated component.
+
+====================================================
+22. FINAL VISUAL GOAL
+====================================================
+
+The final result should feel like:
+
+"Microsoft Copilot / futuristic AI agent / voice assistant"
+
+but with a unique particle-sphere identity for Workday Copilot.
+
+The user should see:
+
+IDLE
+→ calm intelligent particle sphere
+
+HOVER
+→ particles react to cursor
+
+LISTENING
+→ energetic responsive particle field
+
+THINKING
+→ particles converge/process
+
+SPEAKING
+→ rhythmic talking/ripple particle animation
+
+The effect should look premium enough for an enterprise GenAI product demo.
+
+====================================================
+23. FILE SAFETY
+====================================================
+
+Modify:
+
+Orb.jsx
+styles.css
+
+only as required.
+
+Do not modify:
+
+main.jsx
+App.jsx
+authentication
+Graph API code
+backend
+other modules
+
+unless there is an unavoidable compatibility issue.
+
+Do not remove existing functionality.
+
+After implementing, check for:
+
+- React errors
+- ESLint errors
+- animation cleanup
+- browser console errors
+- responsive issues
+- state transition issues
+
+Most importantly:
+
+KEEP THE EXISTING WORKDAY COPILOT UI DESIGN.
+
+Only transform the current blue glowing orb into the interactive AI particle sphere shown conceptually by the attached reference image.
