@@ -1,147 +1,336 @@
-INFO:     Started server process [14776]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
- INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [14776]
-INFO:     Started server process [31444]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-
-
-========================================
-       COMMITMENT API DEBUG START
-========================================
-Employee: {'@odata.context': 'https://graph.microsoft.com/v1.0/$metadata#users(id,displayName,givenName,surname,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,preferredLanguage)/$entity', 'userPrincipalName': 'adityacapg@outlook.com', 'id': '37398c857b147aff', 'displayName': 'Aditya Sinha', 'surname': 'Sinha', 'givenName': 'Aditya', 'preferredLanguage': 'en-IN', 'mail': 'adityacapg@outlook.com', 'mobilePhone': None, 'jobTitle': None, 'officeLocation': None, 'businessPhones': [], 'ageGroup': '3'}
-NOW: 2026-09-18T04:38:35.783Z
-Incoming sent emails: 4
-Incoming inbox emails: 7
-Compacted sent emails: 4
-Compacted inbox emails: 7
-
-FIRST SENT EMAIL
-----------------
-Subject: Commit checks 
-From: {'name': 'Aditya Sinha', 'address': 'adityacapg@outlook.com'}
-To: [{'emailAddress': {'name': 'cruciferplayer@outlook.com', 'address': 'cruciferplayer@outlook.com'}}]
-Body length: 0
-Body preview: 
-
-FIRST INBOX EMAIL
------------------
-Subject: commity check
-From: {'name': 'Ghosal, Sneha', 'address': 'sneha.a.ghosal@capgemini.com'}
-Body length: 0
-Body preview: 
-
-AI PAYLOAD
-----------------
-Payload characters: 9042
-System prompt characters: 5060
-
-Calling provider_call()...
-
-AI PROVIDER RESPONSE RECEIVED
------------------------------
-Response type: <class 'str'>
-Response length: 182
-Raw AI response:
-{
-  "generatedAt": "2026-09-18T04:38:35.783Z",
-  "summary": {
-    "active": 0,
-    "dueToday": 0,
-    "overdue": 0,
-    "completed": 0,
-    "noDeadline": 0
-  },
-  "commitments": []
+const G = "https://graph.microsoft.com/v1.0";
+ 
+async function req(token, path, options = {}) {
+  const r = await fetch(G + path, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+ 
+  const text = await r.text();
+ 
+  let data = {};
+ 
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+ 
+  if (!r.ok) {
+    throw Error(data?.error?.message || `Graph ${r.status}`);
+  }
+ 
+  return data;
 }
+ 
+ 
+/* =========================================================
+   PROFILE
+========================================================= */
+ 
+export const getProfile = token =>
+  req(
+    token,
+    "/me?$select=id,displayName,givenName,surname,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,preferredLanguage"
+  );
+ 
+ 
+/* =========================================================
+   MAIL - INBOX
+========================================================= */
+ 
+export const getMail = token =>
+  req(
+    token,
+    "/me/mailFolders/inbox/messages?$top=50&$orderby=receivedDateTime%20desc&$select=id,subject,from,toRecipients,receivedDateTime,body,bodyPreview,importance,isRead,hasAttachments,webLink,flag"
+  );
+ 
+ 
+/* =========================================================
+   MAIL - SENT ITEMS
+   Used by Commitment Intelligence
+========================================================= */
+ 
+export const getSentMail = async token => {
+ 
+  const select = [
+    "id",
+    "subject",
+    "from",
+    "toRecipients",
+    "ccRecipients",
+    "sentDateTime",
+    "body",
+    "bodyPreview",
+    "importance",
+    "hasAttachments",
+    "conversationId",
+    "webLink"
+  ].join(",");
+ 
+  let url =
+    `/me/mailFolders/sentitems/messages?$top=100&$orderby=sentDateTime%20desc&$select=${encodeURIComponent(select)}`;
+ 
+  const messages = [];
+ 
+  while (url) {
+ 
+    const data = await req(token, url);
+ 
+    if (Array.isArray(data.value)) {
+      messages.push(...data.value);
+    }
+ 
+    if (data["@odata.nextLink"]) {
+ 
+      const next = data["@odata.nextLink"];
+ 
+      url = next.startsWith(G)
+        ? next.substring(G.length)
+        : next;
+ 
+    } else {
+ 
+      url = null;
+    }
+  }
+ 
+  return {
+    value: messages
+  };
+};
+ 
+/* Fetch one complete message when the user opens evidence/details. */
+export const getMailMessage = (token, id) => req(
+  token,
+  `/me/messages/${encodeURIComponent(id)}?$select=id,subject,from,toRecipients,ccRecipients,sentDateTime,receivedDateTime,body,bodyPreview,webLink,conversationId,internetMessageId`
+);
 
-Parsing AI JSON...
-JSON parsing SUCCESS
-Returned keys: ['generatedAt', 'summary', 'commitments']
-Commitments returned: 0
-
-========================================
-        COMMITMENT API SUCCESS
-========================================
-
-
-INFO:     127.0.0.1:58129 - "POST /api/commitments HTTP/1.1" 200 OK
-
-
-========================================
-       COMMITMENT API DEBUG START
-========================================
-Employee: {'@odata.context': 'https://graph.microsoft.com/v1.0/$metadata#users(id,displayName,givenName,surname,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,preferredLanguage)/$entity', 'userPrincipalName': 'adityacapg@outlook.com', 'id': '37398c857b147aff', 'displayName': 'Aditya Sinha', 'surname': 'Sinha', 'givenName': 'Aditya', 'preferredLanguage': 'en-IN', 'mail': 'adityacapg@outlook.com', 'mobilePhone': None, 'jobTitle': None, 'officeLocation': None, 'businessPhones': [], 'ageGroup': '3'}
-NOW: 2026-09-18T04:38:51.684Z
-Incoming sent emails: 4
-Incoming inbox emails: 7
-Compacted sent emails: 4
-Compacted inbox emails: 7
-
-FIRST SENT EMAIL
-----------------
-Subject: Commit checks 
-From: {'name': 'Aditya Sinha', 'address': 'adityacapg@outlook.com'}
-To: [{'emailAddress': {'name': 'cruciferplayer@outlook.com', 'address': 'cruciferplayer@outlook.com'}}]
-Body length: 0
-Body preview: 
-
-FIRST INBOX EMAIL
------------------
-Subject: commity check
-From: {'name': 'Ghosal, Sneha', 'address': 'sneha.a.ghosal@capgemini.com'}
-Body length: 0
-Body preview: 
-
-AI PAYLOAD
-----------------
-Payload characters: 9042
-System prompt characters: 5060
-
-Calling provider_call()...
-
-AI PROVIDER RESPONSE RECEIVED
------------------------------
-Response type: <class 'str'>
-Response length: 182
-Raw AI response:
-{
-  "generatedAt": "2026-09-18T04:38:51.684Z",
-  "summary": {
-    "active": 0,
-    "dueToday": 0,
-    "overdue": 0,
-    "completed": 0,
-    "noDeadline": 0
-  },
-  "commitments": []
-}
-
-Parsing AI JSON...
-JSON parsing SUCCESS
-Returned keys: ['generatedAt', 'summary', 'commitments']
-Commitments returned: 0
-
-========================================
-        COMMITMENT API SUCCESS
-========================================
-
-
-INFO:     127.0.0.1:61018 - "POST /api/commitments HTTP/1.1" 200 OK
-
-
-
-
-
-
-
-
-
-
-
-
+ 
+export const sendMail = (token, x) =>
+  req(token, "/me/sendMail", {
+    method: "POST",
+    body: JSON.stringify({
+      message: {
+        subject: x.subject,
+ 
+        body: {
+          contentType: "Text",
+          content: x.body
+        },
+ 
+        toRecipients: (x.to || "")
+          .split(/[;,]/)
+          .map(v => v.trim())
+          .filter(Boolean)
+          .map(address => ({
+            emailAddress: {
+              address
+            }
+          })),
+ 
+        ccRecipients: (x.cc || "")
+          .split(/[;,]/)
+          .map(v => v.trim())
+          .filter(Boolean)
+          .map(address => ({
+            emailAddress: {
+              address
+            }
+          }))
+      },
+ 
+      saveToSentItems: true
+    })
+  })
+  .then(() => ({ success: true }));
+ 
+ 
+export const createDraft = (token, x) =>
+  req(token, "/me/messages", {
+    method: "POST",
+ 
+    body: JSON.stringify({
+      subject: x.subject,
+ 
+      body: {
+        contentType: "Text",
+        content: x.body
+      },
+ 
+      toRecipients: (x.to || "")
+        .split(/[;,]/)
+        .map(v => v.trim())
+        .filter(Boolean)
+        .map(address => ({
+          emailAddress: {
+            address
+          }
+        })),
+ 
+      ccRecipients: (x.cc || "")
+        .split(/[;,]/)
+        .map(v => v.trim())
+        .filter(Boolean)
+        .map(address => ({
+          emailAddress: {
+            address
+          }
+        }))
+    })
+  });
+ 
+ 
+export const markImportant = (token, id) =>
+  req(
+    token,
+    `/me/messages/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        importance: "high"
+      })
+    }
+  );
+ 
+ 
+export const flagMail = (token, id) =>
+  req(
+    token,
+    `/me/messages/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        flag: {
+          flagStatus: "flagged"
+        }
+      })
+    }
+  );
+ 
+ 
+/* =========================================================
+   CALENDAR
+   REAL MICROSOFT GRAPH DATA
+========================================================= */
+ 
+/*
+  Loads all calendar events available through /me/events.
+ 
+  Microsoft Graph is paginated, so we continue following
+  @odata.nextLink until there are no more pages.
+ 
+  This removes the old "next 7 days" limitation.
+*/
+ 
+export const getCalendar = async token => {
+ 
+  const select = [
+    "id",
+    "subject",
+    "bodyPreview",
+    "body",
+    "start",
+    "end",
+    "location",
+    "locations",
+    "organizer",
+    "attendees",
+    "isAllDay",
+    "isCancelled",
+    "isOnlineMeeting",
+    "onlineMeetingProvider",
+    "onlineMeeting",
+    "webLink",
+    "importance",
+    "showAs",
+    "responseStatus",
+    "sensitivity",
+    "isReminderOn",
+    "reminderMinutesBeforeStart",
+    "createdDateTime",
+    "lastModifiedDateTime",
+    "recurrence",
+    "seriesMasterId"
+  ].join(",");
+ 
+ 
+  let url =
+    `/me/events?$top=100&$orderby=start/dateTime&$select=${encodeURIComponent(select)}`;
+ 
+ 
+  const events = [];
+ 
+ 
+  while (url) {
+ 
+    const data = await req(token, url, {
+      headers: {
+        Prefer: 'outlook.timezone="UTC"'
+      }
+    });
+ 
+    if (Array.isArray(data.value)) {
+      events.push(...data.value);
+    }
+ 
+    /*
+      @odata.nextLink is a complete Graph URL.
+      req() normally prefixes G, so when nextLink is returned
+      we remove the Graph hostname.
+    */
+ 
+    if (data["@odata.nextLink"]) {
+ 
+      const next = data["@odata.nextLink"];
+ 
+      url = next.startsWith(G)
+        ? next.substring(G.length)
+        : next;
+ 
+    } else {
+ 
+      url = null;
+    }
+  }
+ 
+ 
+  return {
+    value: events
+  };
+};
+ 
+ 
+/* =========================================================
+   CALENDAR - UPDATE IMPORTANCE
+========================================================= */
+ 
+export const updateCalendarImportance = (token, id, important) =>
+  req(
+    token,
+    `/me/events/${encodeURIComponent(id)}`,
+    {
+      method: "PATCH",
+ 
+      body: JSON.stringify({
+        importance: important ? "high" : "normal"
+      })
+    }
+  );
+ 
+ 
+/* =========================================================
+   CALENDAR - OPTIONAL REFRESH SINGLE EVENT
+========================================================= */
+ 
+export const getCalendarEvent = (token, id) =>
+  req(
+    token,
+    `/me/events/${encodeURIComponent(id)}?$select=id,subject,body,bodyPreview,start,end,location,locations,organizer,attendees,isAllDay,isCancelled,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,webLink,importance,showAs,responseStatus,sensitivity,isReminderOn,reminderMinutesBeforeStart,createdDateTime,lastModifiedDateTime,recurrence,seriesMasterId`
+  );
+ 
