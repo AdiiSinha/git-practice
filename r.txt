@@ -1,0 +1,147 @@
+INFO:     Started server process [14776]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'main.py'. Reloading...
+ INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [14776]
+INFO:     Started server process [31444]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+
+
+========================================
+       COMMITMENT API DEBUG START
+========================================
+Employee: {'@odata.context': 'https://graph.microsoft.com/v1.0/$metadata#users(id,displayName,givenName,surname,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,preferredLanguage)/$entity', 'userPrincipalName': 'adityacapg@outlook.com', 'id': '37398c857b147aff', 'displayName': 'Aditya Sinha', 'surname': 'Sinha', 'givenName': 'Aditya', 'preferredLanguage': 'en-IN', 'mail': 'adityacapg@outlook.com', 'mobilePhone': None, 'jobTitle': None, 'officeLocation': None, 'businessPhones': [], 'ageGroup': '3'}
+NOW: 2026-09-18T04:38:35.783Z
+Incoming sent emails: 4
+Incoming inbox emails: 7
+Compacted sent emails: 4
+Compacted inbox emails: 7
+
+FIRST SENT EMAIL
+----------------
+Subject: Commit checks 
+From: {'name': 'Aditya Sinha', 'address': 'adityacapg@outlook.com'}
+To: [{'emailAddress': {'name': 'cruciferplayer@outlook.com', 'address': 'cruciferplayer@outlook.com'}}]
+Body length: 0
+Body preview: 
+
+FIRST INBOX EMAIL
+-----------------
+Subject: commity check
+From: {'name': 'Ghosal, Sneha', 'address': 'sneha.a.ghosal@capgemini.com'}
+Body length: 0
+Body preview: 
+
+AI PAYLOAD
+----------------
+Payload characters: 9042
+System prompt characters: 5060
+
+Calling provider_call()...
+
+AI PROVIDER RESPONSE RECEIVED
+-----------------------------
+Response type: <class 'str'>
+Response length: 182
+Raw AI response:
+{
+  "generatedAt": "2026-09-18T04:38:35.783Z",
+  "summary": {
+    "active": 0,
+    "dueToday": 0,
+    "overdue": 0,
+    "completed": 0,
+    "noDeadline": 0
+  },
+  "commitments": []
+}
+
+Parsing AI JSON...
+JSON parsing SUCCESS
+Returned keys: ['generatedAt', 'summary', 'commitments']
+Commitments returned: 0
+
+========================================
+        COMMITMENT API SUCCESS
+========================================
+
+
+INFO:     127.0.0.1:58129 - "POST /api/commitments HTTP/1.1" 200 OK
+
+
+========================================
+       COMMITMENT API DEBUG START
+========================================
+Employee: {'@odata.context': 'https://graph.microsoft.com/v1.0/$metadata#users(id,displayName,givenName,surname,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,preferredLanguage)/$entity', 'userPrincipalName': 'adityacapg@outlook.com', 'id': '37398c857b147aff', 'displayName': 'Aditya Sinha', 'surname': 'Sinha', 'givenName': 'Aditya', 'preferredLanguage': 'en-IN', 'mail': 'adityacapg@outlook.com', 'mobilePhone': None, 'jobTitle': None, 'officeLocation': None, 'businessPhones': [], 'ageGroup': '3'}
+NOW: 2026-09-18T04:38:51.684Z
+Incoming sent emails: 4
+Incoming inbox emails: 7
+Compacted sent emails: 4
+Compacted inbox emails: 7
+
+FIRST SENT EMAIL
+----------------
+Subject: Commit checks 
+From: {'name': 'Aditya Sinha', 'address': 'adityacapg@outlook.com'}
+To: [{'emailAddress': {'name': 'cruciferplayer@outlook.com', 'address': 'cruciferplayer@outlook.com'}}]
+Body length: 0
+Body preview: 
+
+FIRST INBOX EMAIL
+-----------------
+Subject: commity check
+From: {'name': 'Ghosal, Sneha', 'address': 'sneha.a.ghosal@capgemini.com'}
+Body length: 0
+Body preview: 
+
+AI PAYLOAD
+----------------
+Payload characters: 9042
+System prompt characters: 5060
+
+Calling provider_call()...
+
+AI PROVIDER RESPONSE RECEIVED
+-----------------------------
+Response type: <class 'str'>
+Response length: 182
+Raw AI response:
+{
+  "generatedAt": "2026-09-18T04:38:51.684Z",
+  "summary": {
+    "active": 0,
+    "dueToday": 0,
+    "overdue": 0,
+    "completed": 0,
+    "noDeadline": 0
+  },
+  "commitments": []
+}
+
+Parsing AI JSON...
+JSON parsing SUCCESS
+Returned keys: ['generatedAt', 'summary', 'commitments']
+Commitments returned: 0
+
+========================================
+        COMMITMENT API SUCCESS
+========================================
+
+
+INFO:     127.0.0.1:61018 - "POST /api/commitments HTTP/1.1" 200 OK
+
+
+
+
+
+
+
+
+
+
+
+
