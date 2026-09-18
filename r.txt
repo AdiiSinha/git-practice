@@ -1,336 +1,524 @@
-const G = "https://graph.microsoft.com/v1.0";
+import os
+import json
+import requests
+from datetime import datetime, timezone
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
+
+load_dotenv()
+KEY = os.getenv("GENAI_API_KEY", "")
+BASE = os.getenv("GENAI_BASE_URL", "").rstrip("/")
+MODEL = os.getenv("GENAI_MODEL", "")
+
+app = FastAPI(title="Workday Copilot AI")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+class Req(BaseModel):
+    query: str
+    context: dict = Field(default_factory=dict)
+    memory: list = Field(default_factory=list)
+
+class CommitmentReq(BaseModel):
+    sent: list = Field(default_factory=list)
+    inbox: list = Field(default_factory=list)
+    now: str = ""
+    employee: dict = Field(default_factory=dict)
+
+
+SYSTEM = """
+You are Workday Copilot, a concise enterprise employee workday intelligence assistant.
+Use ONLY the supplied authorized context. Never invent people, emails, deadlines, projects,
+completion evidence, or actions. Mail may be real Microsoft Graph data.
+
+Return JSON ONLY with exactly these top-level keys:
+{
+  "answer": "...",
+  "actions": [],
+  "suggestions": [],
+  "context_used": []
+}
+
+For normal requests, keep answer concise and professional.
+"""
+
+COMMITMENT_SYSTEM = """
+You are a workplace Commitment Intelligence engine.
  
-async function req(token, path, options = {}) {
-  const r = await fetch(G + path, {
-    ...options,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(options.headers || {})
+Your job is to identify commitments, promises, follow-ups, action items,
+deadlines, and pending responses made by the EMPLOYEE in the supplied emails.
+ 
+IMPORTANT:
+The employee's SENT_EMAILS are the primary source for detecting commitments.
+ 
+A commitment is any statement where the employee:
+- promises to do something
+- agrees to do something
+- says they will do something
+- says they will send/share/provide something
+- says they will review/check/prepare something
+- says they will get back/reply/respond later
+- commits to a deadline or timeframe
+- agrees to follow up
+- says they are waiting for something they promised to provide
+- asks someone to wait because they will take an action
+- gives an implicit workplace promise such as "I'll take care of it"
+ 
+Examples that MUST be detected:
+ 
+"I'll send you the report tomorrow."
+"I'll get back to you by EOD."
+"I'll share the document by Friday."
+"I'll review this and let you know."
+"I'll check with the team and update you."
+"I will prepare the presentation."
+"I'll send the details shortly."
+"Let me get back to you on this."
+"I'll take care of this."
+"I'll follow up with them."
+"I can send this by Monday."
+"I'll have this ready tomorrow."
+ 
+These are commitments even if there is no formal task or Jira ticket.
+ 
+DO NOT require words like "deadline", "task", "action item", or "commitment".
+ 
+Also detect commitments expressed naturally and conversationally.
+ 
+IMPORTANT DISTINCTION:
+ 
+1. SENT_EMAILS:
+Use these to identify promises/commitments made BY the employee.
+ 
+2. INBOX_EMAILS:
+Use these mainly to determine whether an earlier commitment appears to have
+been completed, acknowledged, or is still pending.
+ 
+Do NOT treat a promise made by another person in an inbox email as the
+employee's commitment.
+ 
+For example:
+ 
+Employee sends:
+"I'll send the report tomorrow."
+ 
+This IS an employee commitment.
+ 
+Someone sends to employee:
+"I'll send you the report tomorrow."
+ 
+This is NOT an employee commitment.
+ 
+COMPLETION:
+ 
+If a later email provides reasonable evidence that the employee completed
+the commitment, mark it as completed.
+ 
+Do not assume completion merely because time has passed.
+ 
+If there is not enough evidence, use:
+"active"
+ 
+STATUS VALUES:
+ 
+- "active" = commitment is still pending
+- "due_today" = deadline is today
+- "due_soon" = deadline is approaching
+- "overdue" = explicit deadline has passed and there is no completion evidence
+- "completed" = there is evidence that the employee completed it
+- "no_deadline" = commitment exists but no deadline/timeframe is available
+ 
+DEADLINES:
+ 
+Extract explicit dates and relative time expressions such as:
+ 
+today
+tomorrow
+this afternoon
+this evening
+EOD
+end of day
+tonight
+Monday
+Friday
+next week
+by 5 PM
+within two days
+shortly
+soon
+ 
+Resolve relative dates using the supplied NOW value.
+ 
+If the employee says "I'll get back to you" without a deadline,
+this is STILL a commitment. Use status "no_deadline".
+ 
+DO NOT invent a deadline.
+ 
+TITLE:
+ 
+Create a short, clear description of the commitment.
+ 
+For example:
+ 
+"I'll send you the report tomorrow."
+→ "Send the report"
+ 
+"I'll get back to you by EOD."
+→ "Get back to recipient"
+ 
+"I'll review the document and let you know."
+→ "Review the document and respond"
+ 
+"I'll share the presentation by Friday."
+→ "Share the presentation"
+ 
+PRIORITY:
+ 
+Use:
+- "high" for urgent/time-sensitive commitments
+- "medium" for normal workplace commitments
+- "low" for minor/non-urgent commitments
+ 
+Do not assign high priority merely because a commitment exists.
+ 
+RECIPIENT:
+ 
+Where possible, identify the person the employee promised something to.
+ 
+PROJECT:
+ 
+Only assign a project when it is explicitly identifiable from the supplied
+email content. Do not invent project names.
+ 
+EVIDENCE:
+ 
+Include the email ID and a short evidence quote showing why the commitment
+was detected.
+ 
+Do not fabricate evidence.
+ 
+OUTPUT:
+ 
+Return JSON ONLY.
+ 
+Use exactly this structure:
+ 
+{
+  "generatedAt": "",
+  "summary": {
+    "active": 0,
+    "dueToday": 0,
+    "overdue": 0,
+    "completed": 0,
+    "noDeadline": 0
+  },
+  "commitments": [
+    {
+      "id": "",
+      "title": "",
+      "description": "",
+      "status": "active",
+      "priority": "medium",
+      "dueDate": "",
+      "project": "",
+      "recipient": "",
+      "source": "sent",
+      "sourceEmailId": "",
+      "evidence": "",
+      "completedEvidence": ""
     }
-  });
- 
-  const text = await r.text();
- 
-  let data = {};
- 
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { raw: text };
-  }
- 
-  if (!r.ok) {
-    throw Error(data?.error?.message || `Graph ${r.status}`);
-  }
- 
-  return data;
+  ]
 }
  
+RULES:
  
-/* =========================================================
-   PROFILE
-========================================================= */
+- Return an empty commitments array ONLY if there genuinely are no employee
+  commitments in the supplied emails.
+- Do not create duplicate commitments from the same promise.
+- Do not invent commitments from ordinary informational statements.
+- Do not treat "Thanks", "Received", "Okay", "Noted", etc. as commitments.
+- Do not treat another person's promise as the employee's commitment.
+- Do not create a commitment simply because an email contains a question.
+- Preserve uncertainty rather than inventing facts.
+- Return valid JSON only. No markdown. No explanation outside the JSON.
+"""
  
-export const getProfile = token =>
-  req(
-    token,
-    "/me?$select=id,displayName,givenName,surname,mail,userPrincipalName,jobTitle,department,officeLocation,mobilePhone,businessPhones,preferredLanguage"
-  );
- 
- 
-/* =========================================================
-   MAIL - INBOX
-========================================================= */
- 
-export const getMail = token =>
-  req(
-    token,
-    "/me/mailFolders/inbox/messages?$top=50&$orderby=receivedDateTime%20desc&$select=id,subject,from,toRecipients,receivedDateTime,body,bodyPreview,importance,isRead,hasAttachments,webLink,flag"
-  );
- 
- 
-/* =========================================================
-   MAIL - SENT ITEMS
-   Used by Commitment Intelligence
-========================================================= */
- 
-export const getSentMail = async token => {
- 
-  const select = [
-    "id",
-    "subject",
-    "from",
-    "toRecipients",
-    "ccRecipients",
-    "sentDateTime",
-    "body",
-    "bodyPreview",
-    "importance",
-    "hasAttachments",
-    "conversationId",
-    "webLink"
-  ].join(",");
- 
-  let url =
-    `/me/mailFolders/sentitems/messages?$top=100&$orderby=sentDateTime%20desc&$select=${encodeURIComponent(select)}`;
- 
-  const messages = [];
- 
-  while (url) {
- 
-    const data = await req(token, url);
- 
-    if (Array.isArray(data.value)) {
-      messages.push(...data.value);
-    }
- 
-    if (data["@odata.nextLink"]) {
- 
-      const next = data["@odata.nextLink"];
- 
-      url = next.startsWith(G)
-        ? next.substring(G.length)
-        : next;
- 
-    } else {
- 
-      url = null;
-    }
-  }
- 
-  return {
-    value: messages
-  };
-};
- 
-/* Fetch one complete message when the user opens evidence/details. */
-export const getMailMessage = (token, id) => req(
-  token,
-  `/me/messages/${encodeURIComponent(id)}?$select=id,subject,from,toRecipients,ccRecipients,sentDateTime,receivedDateTime,body,bodyPreview,webLink,conversationId,internetMessageId`
-);
 
- 
-export const sendMail = (token, x) =>
-  req(token, "/me/sendMail", {
-    method: "POST",
-    body: JSON.stringify({
-      message: {
-        subject: x.subject,
- 
-        body: {
-          contentType: "Text",
-          content: x.body
-        },
- 
-        toRecipients: (x.to || "")
-          .split(/[;,]/)
-          .map(v => v.trim())
-          .filter(Boolean)
-          .map(address => ({
-            emailAddress: {
-              address
-            }
-          })),
- 
-        ccRecipients: (x.cc || "")
-          .split(/[;,]/)
-          .map(v => v.trim())
-          .filter(Boolean)
-          .map(address => ({
-            emailAddress: {
-              address
-            }
-          }))
-      },
- 
-      saveToSentItems: true
-    })
-  })
-  .then(() => ({ success: true }));
- 
- 
-export const createDraft = (token, x) =>
-  req(token, "/me/messages", {
-    method: "POST",
- 
-    body: JSON.stringify({
-      subject: x.subject,
- 
-      body: {
-        contentType: "Text",
-        content: x.body
-      },
- 
-      toRecipients: (x.to || "")
-        .split(/[;,]/)
-        .map(v => v.trim())
-        .filter(Boolean)
-        .map(address => ({
-          emailAddress: {
-            address
-          }
-        })),
- 
-      ccRecipients: (x.cc || "")
-        .split(/[;,]/)
-        .map(v => v.trim())
-        .filter(Boolean)
-        .map(address => ({
-          emailAddress: {
-            address
-          }
-        }))
-    })
-  });
- 
- 
-export const markImportant = (token, id) =>
-  req(
-    token,
-    `/me/messages/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        importance: "high"
-      })
+def provider_call(messages, temperature=0.1):
+    if not (KEY and BASE and MODEL):
+        raise RuntimeError("AI backend not configured. Fill backend/.env.")
+    payload = {"model": MODEL, "temperature": temperature, "messages": messages}
+    r = requests.post(
+        BASE + "/chat/completions",
+        headers={"Authorization": "Bearer " + KEY, "Content-Type": "application/json"},
+        json=payload,
+        timeout=90
+    )
+    if not r.ok:
+        raise RuntimeError(f"AI provider HTTP {r.status_code}: {r.text[:700]}")
+    content = r.json()["choices"][0]["message"]["content"]
+    return content.replace("```json", "").replace("```", "").strip()
+
+def call(q, c, memory):
+    compact = {
+        "profile": c.get("profile"),
+        "emails": c.get("emails", [])[:40],
+        "calendar": c.get("calendar", [])[:25],
+        "teams": c.get("teams", [])[:40],
+        "tasks": c.get("tasks", [])[:25],
+        "projects": c.get("projects", [])[:10],
+        "workplace": c.get("workplace", {})
     }
-  );
+    content = provider_call([
+        {"role": "system", "content": SYSTEM},
+        {"role": "user", "content":
+         "CONTEXT:\n" + json.dumps(compact, ensure_ascii=False) +
+         "\nRECENT CONVERSATION MEMORY:\n" + json.dumps(memory[-12:], ensure_ascii=False) +
+         "\nREQUEST:\n" + q}
+    ], temperature=0.18)
+    try:
+        data = json.loads(content)
+    except Exception:
+        data = {"answer": content, "actions": [], "suggestions": [], "context_used": []}
+    data.setdefault("actions", [])
+    data.setdefault("suggestions", [])
+    data.setdefault("context_used", [])
+    data.setdefault("answer", "I couldn't generate a concise answer from the available context.")
+    return data
+
+@app.get("/health")
+def health():
+    return {"ok": True, "configured": bool(KEY and BASE and MODEL), "model": MODEL or None}
+
+@app.post("/api/copilot")
+def copilot(x: Req):
+    try:
+        return call(x.query, x.context, x.memory)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.post("/api/commitments")
+def commitments(x: CommitmentReq):
+    try:
+        print("\n")
+        print("========================================")
+        print("       COMMITMENT API DEBUG START")
+        print("========================================")
  
+        print("Employee:", x.employee)
+        print("NOW:", x.now)
  
-export const flagMail = (token, id) =>
-  req(
-    token,
-    `/me/messages/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        flag: {
-          flagStatus: "flagged"
+        print("Incoming sent emails:", len(x.sent or []))
+        print("Incoming inbox emails:", len(x.inbox or []))
+ 
+        # ----------------------------------------
+        # Compact email data
+        # ----------------------------------------
+        def compact_mail(m, direction):
+            body = (
+                ((m.get("body") or {}).get("content")
+                 if isinstance(m.get("body"), dict)
+                 else None)
+                or m.get("bodyPreview")
+                or ""
+            )
+ 
+            return {
+                "id": m.get("id", ""),
+                "direction": direction,
+                "subject": m.get("subject", ""),
+                "from": m.get("from", {}),
+                "toRecipients": m.get("toRecipients", []),
+                "ccRecipients": m.get("ccRecipients", []),
+                "timestamp": (
+                    m.get("timestamp")
+                    or m.get("sentDateTime")
+                    or m.get("receivedDateTime")
+                    or ""
+                ),
+                "body": str(body)[:3500],
+                "webLink": m.get("webLink", ""),
+                "conversationId": m.get("conversationId", "")
+            }
+ 
+        sent = [
+            compact_mail(m, "sent")
+            for m in (x.sent or [])[:30]
+        ]
+ 
+        inbox = [
+            compact_mail(m, "received")
+            for m in (x.inbox or [])[:30]
+        ]
+ 
+        print("Compacted sent emails:", len(sent))
+        print("Compacted inbox emails:", len(inbox))
+ 
+        # ----------------------------------------
+        # Check actual email content
+        # ----------------------------------------
+        if sent:
+            print("\nFIRST SENT EMAIL")
+            print("----------------")
+            print("Subject:", sent[0].get("subject"))
+            print("From:", sent[0].get("from"))
+            print("To:", sent[0].get("toRecipients"))
+            print("Body length:", len(sent[0].get("body", "")))
+            print("Body preview:", sent[0].get("body", "")[:500])
+ 
+        if inbox:
+            print("\nFIRST INBOX EMAIL")
+            print("-----------------")
+            print("Subject:", inbox[0].get("subject"))
+            print("From:", inbox[0].get("from"))
+            print("Body length:", len(inbox[0].get("body", "")))
+            print("Body preview:", inbox[0].get("body", "")[:500])
+ 
+        # ----------------------------------------
+        # Build AI input
+        # ----------------------------------------
+        user_content = {
+            "NOW": x.now or datetime.now(timezone.utc).isoformat(),
+            "EMPLOYEE": x.employee,
+            "SENT_EMAILS": sent,
+            "INBOX_EMAILS": inbox
         }
-      })
-    }
-  );
  
+        payload = json.dumps(
+            user_content,
+            ensure_ascii=False
+        )
  
-/* =========================================================
-   CALENDAR
-   REAL MICROSOFT GRAPH DATA
-========================================================= */
+        print("\nAI PAYLOAD")
+        print("----------------")
+        print("Payload characters:", len(payload))
  
-/*
-  Loads all calendar events available through /me/events.
+        print("System prompt characters:", len(COMMITMENT_SYSTEM))
  
-  Microsoft Graph is paginated, so we continue following
-  @odata.nextLink until there are no more pages.
+        # ----------------------------------------
+        # CALL AI PROVIDER
+        # ----------------------------------------
+        print("\nCalling provider_call()...")
+        
+        content = provider_call(
+            [
+                {
+                    "role": "system",
+                    "content": COMMITMENT_SYSTEM
+                },
+                {
+                    "role": "user",
+                    "content": payload
+                }
+            ],
+            temperature=0.05
+        )
  
-  This removes the old "next 7 days" limitation.
-*/
+        print("\nAI PROVIDER RESPONSE RECEIVED")
+        print("-----------------------------")
+        print("Response type:", type(content))
+        print("Response length:", len(str(content)))
+        print("Raw AI response:")
+        print(str(content)[:3000])
  
-export const getCalendar = async token => {
+        # ----------------------------------------
+        # Parse AI JSON
+        # ----------------------------------------
+        print("\nParsing AI JSON...")
  
-  const select = [
-    "id",
-    "subject",
-    "bodyPreview",
-    "body",
-    "start",
-    "end",
-    "location",
-    "locations",
-    "organizer",
-    "attendees",
-    "isAllDay",
-    "isCancelled",
-    "isOnlineMeeting",
-    "onlineMeetingProvider",
-    "onlineMeeting",
-    "webLink",
-    "importance",
-    "showAs",
-    "responseStatus",
-    "sensitivity",
-    "isReminderOn",
-    "reminderMinutesBeforeStart",
-    "createdDateTime",
-    "lastModifiedDateTime",
-    "recurrence",
-    "seriesMasterId"
-  ].join(",");
+        data = json.loads(content)
  
+        print("JSON parsing SUCCESS")
+        print("Returned keys:", list(data.keys()))
  
-  let url =
-    `/me/events?$top=100&$orderby=start/dateTime&$select=${encodeURIComponent(select)}`;
+        data.setdefault(
+            "generatedAt",
+            datetime.now(timezone.utc).isoformat()
+        )
  
+        data.setdefault("summary", {})
+        data.setdefault("commitments", [])
  
-  const events = [];
+        print("Commitments returned:", len(data["commitments"]))
  
+        print("\n========================================")
+        print("        COMMITMENT API SUCCESS")
+        print("========================================")
+        print("\n")
  
-  while (url) {
+        return data
  
-    const data = await req(token, url, {
-      headers: {
-        Prefer: 'outlook.timezone="UTC"'
-      }
-    });
+    except json.JSONDecodeError as e:
  
-    if (Array.isArray(data.value)) {
-      events.push(...data.value);
-    }
+        print("\n")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("       COMMITMENT JSON ERROR")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("JSON error:", repr(e))
+        print("AI content was:")
+        print(str(content)[:5000] if "content" in locals() else "NO AI RESPONSE")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("\n")
  
-    /*
-      @odata.nextLink is a complete Graph URL.
-      req() normally prefixes G, so when nextLink is returned
-      we remove the Graph hostname.
-    */
+        raise HTTPException(
+            status_code=500,
+            detail=f"Commitment AI returned invalid JSON: {e}"
+        )
  
-    if (data["@odata.nextLink"]) {
+    except Exception as e:
  
-      const next = data["@odata.nextLink"];
+        import traceback
  
-      url = next.startsWith(G)
-        ? next.substring(G.length)
-        : next;
+        print("\n")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("       COMMITMENT BACKEND ERROR")
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("Error type:", type(e).__name__)
+        print("Error:", repr(e))
+        print("\nFULL TRACEBACK:")
+        traceback.print_exc()
+        print("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+        print("\n")
  
-    } else {
+        raise HTTPException(
+            status_code=500,
+            detail=f"Commitment backend error: {str(e)}"
+        )
  
-      url = null;
-    }
-  }
- 
- 
-  return {
-    value: events
-  };
-};
- 
- 
-/* =========================================================
-   CALENDAR - UPDATE IMPORTANCE
-========================================================= */
- 
-export const updateCalendarImportance = (token, id, important) =>
-  req(
-    token,
-    `/me/events/${encodeURIComponent(id)}`,
-    {
-      method: "PATCH",
- 
-      body: JSON.stringify({
-        importance: important ? "high" : "normal"
-      })
-    }
-  );
- 
- 
-/* =========================================================
-   CALENDAR - OPTIONAL REFRESH SINGLE EVENT
-========================================================= */
- 
-export const getCalendarEvent = (token, id) =>
-  req(
-    token,
-    `/me/events/${encodeURIComponent(id)}?$select=id,subject,body,bodyPreview,start,end,location,locations,organizer,attendees,isAllDay,isCancelled,isOnlineMeeting,onlineMeetingProvider,onlineMeeting,webLink,importance,showAs,responseStatus,sensitivity,isReminderOn,reminderMinutesBeforeStart,createdDateTime,lastModifiedDateTime,recurrence,seriesMasterId`
-  );
- 
+
+class DraftReq(BaseModel):
+    commitment: dict = Field(default_factory=dict)
+
+DRAFT_SYSTEM = """
+You draft concise professional workplace follow-up emails.
+Use only the supplied commitment. Do not invent project facts or deadlines.
+If a recipient email is present, use it. If not, return an empty `to`.
+Return JSON ONLY: {"to":"","subject":"","body":""}.
+The message should politely reference the commitment and ask for/communicate the next step.
+If the commitment is overdue, acknowledge the follow-up without inventing an excuse.
+"""
+
+@app.post("/api/commitments/draft")
+def commitment_draft(x: DraftReq):
+    try:
+        content = provider_call([
+            {"role": "system", "content": DRAFT_SYSTEM},
+            {"role": "user", "content": json.dumps(x.commitment, ensure_ascii=False)}
+        ], temperature=0.2)
+        data = json.loads(content)
+        return {
+            "to": data.get("to", ""),
+            "subject": data.get("subject", f"Follow-up: {x.commitment.get('title', 'Commitment')}"),
+            "body": data.get("body", "")
+        }
+    except json.JSONDecodeError as e:
+        raise HTTPException(500, f"Draft AI returned invalid JSON: {e}")
+    except Exception as e:
+        raise HTTPException(500, str(e))
