@@ -1,0 +1,915 @@
+I want you to redesign and improve the EXISTING Workday Copilot chat/home page shown in the attached screenshots.
+
+I am attaching the relevant existing project files and screenshots as the visual reference.
+
+IMPORTANT:
+- First inspect the existing code and understand how the current Workday Copilot page works.
+- Preserve all existing functionality.
+- Do NOT redesign the entire application.
+- Do NOT change the left sidebar or right workplace panel unless absolutely required for responsive layout.
+- Do NOT change authentication, Microsoft Graph integration, AI API integration, voice recognition, speech synthesis, or existing navigation logic.
+- Do NOT change main.jsx.
+- Keep the existing dark futuristic Workday Copilot visual identity.
+- Make the page feel like a premium enterprise AI assistant.
+- The design must prioritize SPACE and usability.
+- The chat input must always be easily accessible without the user having to scroll.
+
+The attached screenshots show the CURRENT UI. Improve it according to the requirements below.
+
+====================================================
+1. INNER FIXED HEADER — MINIMAL AND CLEAN
+====================================================
+
+Inside the main Workday Copilot content area, create a SHORT FIXED/STICKY INNER HEADER.
+
+Remove unnecessary text such as:
+
+"CONVERSATIONAL WORK INTERFACE"
+
+Do not waste vertical space with large descriptive headings.
+
+The inner header should contain only the essential information.
+
+Example:
+
+WORKDAY COPILOT                         ● Ready
+Employee Experience
+
+or even more compact:
+
+✦ WORKDAY COPILOT                 ● Ready
+
+The header should remain visually integrated with the page.
+
+Requirements:
+
+- compact height
+- sticky/fixed inside the Copilot content area
+- subtle glass/blur background
+- thin border
+- premium dark UI
+- no huge heading
+- no unnecessary explanatory text
+
+Do NOT use excessive vertical padding.
+
+====================================================
+2. ORB AREA
+====================================================
+
+Keep the existing particle AI orb design.
+
+Do NOT replace the current particle animation.
+
+The orb should remain visually impressive.
+
+Below the orb, KEEP:
+
+"READY FOR YOUR COMMAND"
+
+But REMOVE:
+
+"Your workday context is ready"
+
+The status area should be compact.
+
+Example:
+
+[ PARTICLE AI ORB ]
+
+READY FOR YOUR COMMAND
+
+No additional sentence underneath.
+
+The orb should have enough visual presence but should NOT consume so much vertical space that the chat input gets pushed below the screen.
+
+====================================================
+3. IMPORTANT ORB TRANSITION WHEN USER STARTS CHAT
+====================================================
+
+This is one of the most important requirements.
+
+When the user starts interacting with the Copilot by:
+
+A. typing a message
+OR
+B. using voice input
+
+the orb should smoothly transition from the large centered position to a smaller position toward the UPPER-RIGHT area of the chat workspace.
+
+Conceptually:
+
+INITIAL STATE:
+
+             LARGE ORB
+                ●
+          READY FOR COMMAND
+
+       suggestions
+
+       [ Ask your Workday Copilot... ]
+
+
+AFTER USER STARTS CHAT:
+
+                             small orb
+                                ●
+
+     WORKDAY COPILOT
+
+     User message...
+     AI response...
+     AI response...
+
+     [ Ask your Workday Copilot... ]
+
+The orb should NOT disappear.
+
+It should become a compact persistent AI-agent visualization in the upper-right.
+
+The transition should feel like the AI is moving into "conversation mode."
+
+Animation:
+
+large centered orb
+        ↓
+smooth scale down
+        ↓
+smooth translate toward upper-right
+        ↓
+small floating active orb
+
+Use:
+
+- transform
+- opacity
+- scale
+- translate
+- easing
+- spring-like or cubic-bezier animation
+
+Avoid abrupt position changes.
+
+The transition should take approximately 500–800ms and feel premium.
+
+IMPORTANT:
+
+Do NOT destroy/recreate the orb during the transition.
+
+Keep the same orb component and animation running continuously.
+
+====================================================
+4. ORB STATE ANIMATIONS
+====================================================
+
+Keep the current particle animation but introduce different behavior depending on AI state.
+
+IDLE / READY:
+
+- calm particle movement
+- slow rotation
+- subtle breathing
+- soft glow
+
+LISTENING:
+
+- particles become more active
+- subtle expansion
+- ripple effect
+- stronger glow
+- particle movement reacts to microphone/voice input if existing audio data is available
+
+THINKING:
+
+Create a DISTINCT thinking animation.
+
+It should look different from listening.
+
+Possible visual:
+
+particles slowly converge toward the center
+→ compress
+→ rotate
+→ expand outward
+→ repeat
+
+It should communicate:
+
+"AI is processing."
+
+Do not use a simple spinner.
+
+SPEAKING:
+
+Keep the current speaking animation style because it already looks good.
+
+Make the particle sphere subtly pulse/ripple with the AI speech.
+
+IMPORTANT:
+
+All state transitions must be smooth.
+
+====================================================
+5. CHAT INPUT MUST ALWAYS BE ACCESSIBLE
+====================================================
+
+This is a major UX requirement.
+
+The user should NOT need to scroll down to find:
+
+"Ask your Workday Copilot..."
+
+The chat composer should be positioned in a stable/fixed area near the bottom of the Copilot workspace.
+
+Use a layout similar to:
+
+-----------------------------------------
+        INNER HEADER
+-----------------------------------------
+
+              ORB
+
+        READY FOR YOUR COMMAND
+
+
+        CHAT / CONVERSATION AREA
+
+        user message
+        AI response
+        user message
+        AI response
+
+-----------------------------------------
+        SUGGESTIONS
+-----------------------------------------
+        CHAT INPUT / COMPOSER
+-----------------------------------------
+
+The input should remain visible while conversation content scrolls.
+
+If messages become long:
+
+ONLY THE CHAT MESSAGE AREA SHOULD SCROLL.
+
+The overall Copilot page should NOT scroll just to access the input.
+
+Use something like:
+
+.copilotPage {
+    height: 100%;
+    overflow: hidden;
+}
+
+.chatArea {
+    overflow-y: auto;
+}
+
+.composer {
+    flex-shrink: 0;
+}
+
+Do not blindly copy these classes; adapt them to the existing architecture.
+
+====================================================
+6. CHAT INPUT DESIGN
+====================================================
+
+Make the chat input look premium and professional.
+
+Current placeholder:
+
+"Ask your Workday Copilot..."
+
+Keep this text.
+
+Create a large but compact glass-style composer.
+
+It should have:
+
+- rounded corners
+- subtle blue/cyan border
+- dark translucent background
+- inner glow on focus
+- smooth focus transition
+- professional send button
+- microphone/voice button
+- mute-related control where appropriate
+
+Example concept:
+
+┌──────────────────────────────────────────────┐
+│  ✦   🎙   Ask your Workday Copilot...     ↑ │
+└──────────────────────────────────────────────┘
+
+The SEND button should:
+
+- have a clean modern arrow icon
+- be circular or softly rounded
+- have hover glow
+- scale slightly on hover
+- have pressed feedback
+- clearly communicate "send"
+
+Use SVG icons where possible instead of emoji.
+
+Do NOT use ugly text characters such as:
+
+→
+🎤
+🔊
+
+for the primary controls if a proper SVG/icon can be created.
+
+====================================================
+7. SEND / STOP RESPONSE BEHAVIOR
+====================================================
+
+Implement the following behavior carefully.
+
+NORMAL STATE:
+
+When the AI is not generating/speaking:
+
+Composer shows:
+
+SEND ↑
+
+When the user presses Enter or clicks Send:
+
+1. User message is added immediately.
+2. AI response begins.
+3. The composer SEND button changes to:
+
+STOP ■
+
+The STOP button must look clearly different and communicate that the AI response can be interrupted.
+
+While AI is responding/speaking:
+
+[ STOP ]
+
+When STOP is clicked:
+
+- stop AI response generation if supported by the existing API
+- stop speech synthesis immediately
+- stop the speaking animation
+- return the orb to the appropriate state
+- return the composer button to SEND
+
+IMPORTANT:
+
+Do NOT fake the stop button visually while speech continues.
+
+If window.speechSynthesis is being used, cancel the speech properly.
+
+If the backend supports cancellation/AbortController, use it.
+
+Do not break the current AI request flow.
+
+====================================================
+8. MUTE BEHAVIOR
+====================================================
+
+There should be a small mute/unmute AI control in the INNER HEADER on the right side.
+
+Example:
+
+WORKDAY COPILOT                    ● Ready   🔇
+
+But use a professional SVG icon rather than emoji.
+
+When AI is unmuted:
+
+speaker icon
+
+When AI is muted:
+
+muted speaker icon
+
+The control should be:
+
+- small
+- elegant
+- unobtrusive
+- circular or pill-shaped
+- hover animated
+- accessible
+- have tooltip
+
+Tooltip examples:
+
+"Mute AI"
+
+"Unmute AI"
+
+The existing mute functionality must continue working.
+
+Do NOT create a second independent mute system.
+
+Connect the UI to the existing mute state/function.
+
+====================================================
+9. LEFT-SIDE VOICE CONTROLS
+====================================================
+
+The current voice/listening controls need a visual upgrade.
+
+Make them professional and consistent with the Workday Copilot design.
+
+There should be:
+
+MIC / VOICE COMMAND
+
+and
+
+MUTE AI
+
+or the appropriate existing controls.
+
+Use proper SVG icons:
+
+- microphone
+- microphone-off
+- speaker
+- speaker-off
+
+Do NOT use emoji icons.
+
+Interaction:
+
+Normal:
+subtle dark glass button
+
+Hover:
+- slight lift
+- cyan border
+- soft glow
+- icon movement/scale
+
+Active listening:
+- microphone icon becomes highlighted
+- subtle pulsing ring
+- button clearly indicates LISTENING
+
+Muted:
+- muted speaker icon
+- subtle disabled/quiet appearance
+
+Pressed:
+- slight scale-down feedback
+
+Use smooth transitions around 150–250ms.
+
+====================================================
+10. INSTANT SUGGESTIONS
+====================================================
+
+Keep the existing instant suggestion chips above the input.
+
+Examples:
+
+Catch me up
+What's urgent?
+What should I do next?
+What am I waiting for?
+What have I promised?
+
+Keep them compact.
+
+Make them:
+
+- premium pills
+- subtle gradient/glass effect
+- hover lift
+- cyan/blue glow
+- smooth active state
+
+IMPORTANT:
+
+Add a VERY SMALL close/X SVG icon to the suggestion area.
+
+Example:
+
+Catch me up   What's urgent?   What should I do next?   ×
+
+The X should be tiny and unobtrusive.
+
+When hovering over the X:
+
+show a small tooltip:
+
+"Close suggestions"
+
+The tooltip should appear smoothly.
+
+Clicking X should hide the suggestions.
+
+Do not delete the suggestion functionality permanently.
+
+Add a way/state to restore them if appropriate, or preserve the existing suggestion behavior.
+
+====================================================
+11. CHAT CONVERSATION UI
+====================================================
+
+Improve the design of the actual conversation messages.
+
+User messages should feel distinct from AI messages.
+
+USER:
+
+right aligned or visually separated
+
+small circular avatar/initial
+
+compact blue/cyan glass bubble
+
+AI:
+
+left aligned
+
+small AI icon/avatar
+
+dark glass card
+
+subtle cyan/purple border
+
+Use hierarchy:
+
+AI label / avatar
+response text
+optional actions
+
+Avoid huge speech bubbles.
+
+Messages should be easy to scan.
+
+Use:
+
+- comfortable spacing
+- readable font size
+- line height
+- subtle borders
+- subtle shadows
+- smooth message entrance animation
+
+When a new AI response appears:
+
+use a smooth fade + upward transition.
+
+Do NOT animate every word excessively.
+
+====================================================
+12. AI RESPONSE ACTIONS
+====================================================
+
+If the existing AI response contains actions/suggestion buttons, improve their visual presentation.
+
+Example:
+
+AI response
+
+"Here are your most urgent items..."
+
+[ Review urgent mail ] [ Open calendar ]
+
+Buttons should use compact glass styling.
+
+Hover:
+
+- slight upward movement
+- cyan glow
+- border highlight
+
+Do not change their functionality.
+
+====================================================
+13. THINKING INDICATOR
+====================================================
+
+While AI is thinking:
+
+Do not show only a generic "loading..." text.
+
+Use a subtle AI processing indicator.
+
+Example:
+
+AI
+● ● ●
+
+or:
+
+AI is thinking...
+
+with three animated particles.
+
+The orb should simultaneously use the special THINKING particle animation.
+
+Make this feel like one coherent AI experience.
+
+====================================================
+14. RESPONSIVE BEHAVIOR
+====================================================
+
+The layout must work on:
+
+- desktop
+- laptop
+- smaller screens
+
+Do NOT allow the composer to disappear below the viewport.
+
+On smaller screens:
+
+- orb becomes smaller
+- conversation area gets more space
+- suggestions can horizontally scroll
+- composer remains fixed/visible
+
+====================================================
+15. VISUAL LANGUAGE
+====================================================
+
+Keep the existing Workday Copilot aesthetic:
+
+dark futuristic enterprise interface
++
+cyan/blue
++
+subtle violet/magenta
++
+glassmorphism
++
+particle AI visualization
+
+Avoid:
+
+- excessive neon
+- excessive gradients
+- cartoon UI
+- excessive rounded cards
+- huge empty spaces
+- unnecessary headings
+- excessive animations
+
+The final UI should look like a serious enterprise GenAI product demo.
+
+====================================================
+16. IMPORTANT LAYOUT PRIORITY
+====================================================
+
+The vertical priority should be:
+
+1. compact inner header
+2. orb / AI status
+3. conversation area
+4. instant suggestions
+5. ALWAYS-VISIBLE composer
+
+The composer is the most important interaction element.
+
+Do NOT allow the orb or headings to consume so much vertical space that the composer gets pushed below the screen.
+
+====================================================
+17. STATE TRANSITION SUMMARY
+====================================================
+
+Implement this overall UX:
+
+INITIAL:
+
+┌─────────────────────────────────────┐
+│ ✦ WORKDAY COPILOT        ● Ready 🔊 │
+├─────────────────────────────────────┤
+│                                     │
+│              LARGE ORB              │
+│                                     │
+│        READY FOR YOUR COMMAND       │
+│                                     │
+│                                     │
+│       suggestion chips              │
+│                                     │
+│ ┌─────────────────────────────────┐ │
+│ │ 🎙 Ask your Workday Copilot... ↑│ │
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+
+
+USER STARTS TYPING / VOICE:
+
+Large orb smoothly moves upward/right
+and becomes smaller.
+
+Then:
+
+┌─────────────────────────────────────┐
+│ ✦ WORKDAY COPILOT       ● 🔊       │
+├─────────────────────────────────────┤
+│                              small  │
+│                               orb   │
+│                                     │
+│ USER MESSAGE                        │
+│                                     │
+│ AI RESPONSE                         │
+│                                     │
+│ USER MESSAGE                        │
+│                                     │
+│ AI RESPONSE                         │
+│                                     │
+├─────────────────────────────────────┤
+│ suggestions                         │
+│ ┌─────────────────────────────────┐ │
+│ │ Ask your Workday Copilot... STOP│ │
+│ └─────────────────────────────────┘ │
+└─────────────────────────────────────┘
+
+
+THINKING:
+
+small orb → special processing/convergence animation
+
+SPEAKING:
+
+small orb → current speaking particle animation
+
+STOP:
+
+speech stops
+→ orb returns to correct state
+→ composer becomes SEND
+
+MUTED:
+
+AI speech is suppressed
+→ text response still appears
+→ after text response is complete, composer immediately shows SEND
+→ no unnecessary waiting for speech
+
+====================================================
+18. CRITICAL EXISTING FUNCTIONALITY
+====================================================
+
+Do NOT break:
+
+- ask()
+- voice recognition
+- auto-listen
+- mute/unmute
+- speech synthesis
+- stopSpeaking()
+- message history
+- AI response generation
+- dynamic suggestions
+- existing authentication
+- Microsoft Graph
+- existing navigation
+- existing state management
+
+Before changing anything, identify how the existing code currently handles:
+
+state
+msgs
+ask()
+speak()
+stopSpeaking()
+stopRecognition()
+autoListen
+muted
+suggestions
+
+Reuse those mechanisms.
+
+Do not create duplicate state systems if the existing ones already provide the required behavior.
+
+====================================================
+19. CODE IMPLEMENTATION
+====================================================
+
+Inspect the existing files first.
+
+Modify only the files necessary for this UI update.
+
+Prefer:
+
+- CSS transitions
+- CSS transforms
+- React state/refs already available
+- existing Orb component
+- existing icons or lightweight SVG icons
+
+Avoid adding heavy dependencies.
+
+Use requestAnimationFrame only where necessary for the existing orb.
+
+Make sure animation loops are cleaned up.
+
+Make sure the chat message container and composer have correct height/overflow behavior.
+
+====================================================
+20. FINAL ACCEPTANCE TEST
+====================================================
+
+After implementation, verify these exact scenarios:
+
+TEST 1:
+Open Workday Copilot.
+
+Expected:
+- compact header
+- no "CONVERSATIONAL WORK INTERFACE"
+- no "Your workday context is ready"
+- particle orb centered
+- "READY FOR YOUR COMMAND"
+- composer visible without scrolling
+
+TEST 2:
+Start typing.
+
+Expected:
+- orb smoothly moves to upper-right
+- orb becomes smaller
+- chat workspace becomes available
+- composer remains visible
+
+TEST 3:
+Send a message.
+
+Expected:
+- user message appears
+- SEND changes to STOP
+- orb enters THINKING
+- then SPEAKING
+
+TEST 4:
+Click STOP.
+
+Expected:
+- speech stops immediately
+- response state ends appropriately
+- button becomes SEND
+- orb returns to appropriate idle/listening state
+
+TEST 5:
+Mute AI.
+
+Expected:
+- mute icon changes
+- AI text response still works
+- speech does not play
+- once response text is complete, composer remains SEND
+
+TEST 6:
+Hover microphone.
+
+Expected:
+- professional hover animation
+- tooltip/status is clear
+
+TEST 7:
+Hover suggestion X.
+
+Expected:
+- tooltip says:
+  "Close suggestions"
+
+TEST 8:
+Click X.
+
+Expected:
+- suggestion chips disappear
+- chat input remains visible
+
+TEST 9:
+Generate a long conversation.
+
+Expected:
+- ONLY conversation area scrolls
+- composer stays visible
+- page itself does not require scrolling to access input
+
+TEST 10:
+Resize browser.
+
+Expected:
+- layout remains usable
+- orb scales appropriately
+- composer remains accessible
+
+====================================================
+FINAL REQUIREMENT
+====================================================
+
+Do not just make the page "look nicer."
+
+The goal is to redesign the interaction model so that:
+
+THE ORB = AI PRESENCE
+
+THE CHAT AREA = CONVERSATION
+
+THE COMPOSER = PRIMARY USER ACTION
+
+The transition from a large centered AI orb to a small upper-right conversational orb is the key visual interaction.
+
+Make it smooth, premium, futuristic, minimal, and professional while preserving the existing Workday Copilot functionality.
